@@ -1,0 +1,2282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EcoFlow — Smart Commute</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════
+   ECOFLOW DESIGN SYSTEM v4.0 — Redesigned Layout
+   ═══════════════════════════════════════════════════════ */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0B0F14;--surface:#141A23;--card:#1B2330;--card2:#222D3D;
+  --border:#2A3545;--border2:#354055;
+  --text:#F0F2F5;--text2:#A0AAB8;--text3:#6B7A8D;
+  --accent:#22C55E;--accent2:#16A34A;--accent-bg:rgba(34,197,94,.1);--accent-border:rgba(34,197,94,.2);
+  --blue:#3B82F6;--blue-bg:rgba(59,130,246,.1);
+  --orange:#F59E0B;--orange-bg:rgba(245,158,11,.1);
+  --red:#EF4444;--red-bg:rgba(239,68,68,.1);
+  --purple:#A855F7;--purple-bg:rgba(168,85,247,.1);
+  --cyan:#06B6D4;--cyan-bg:rgba(6,182,212,.1);
+  --lime:#84CC16;
+  --radius:14px;--radius-sm:10px;--radius-xs:8px;
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --mono:'JetBrains Mono',monospace;
+  --shadow:0 4px 24px rgba(0,0,0,.4);
+  --shadow-lg:0 10px 40px rgba(0,0,0,.5);
+  --shadow-sm:0 2px 8px rgba(0,0,0,.3);
+  --transition:all .25s cubic-bezier(.4,0,.2,1);
+  --rail-w:68px;
+  --panel-w:380px;
+}
+html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--bg);color:var(--text)}
+#map{position:fixed;inset:0;z-index:0}
+
+/* ═══ SVG ICON ═══ */
+.ico{width:20px;height:20px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;flex-shrink:0}
+.ico-sm{width:16px;height:16px}
+.ico-lg{width:24px;height:24px}
+
+/* ═══════════════════════════════════════════════════════
+   AUTH OVERLAY (first-visit login/signup)
+   ═══════════════════════════════════════════════════════ */
+#authOverlay{
+  position:fixed;inset:0;z-index:3000;
+  background:radial-gradient(ellipse at top left, rgba(34,197,94,.08), transparent 50%),
+             radial-gradient(ellipse at bottom right, rgba(59,130,246,.08), transparent 50%),
+             rgba(11,15,20,.96);
+  backdrop-filter:blur(24px);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  opacity:0;visibility:hidden;transition:opacity .3s,visibility .3s;
+}
+#authOverlay.show{opacity:1;visibility:visible}
+.auth-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:24px;box-shadow:var(--shadow-lg);
+  width:100%;max-width:420px;padding:40px 32px;
+  position:relative;overflow:hidden;
+}
+.auth-card::before{
+  content:'';position:absolute;top:-80px;right:-80px;
+  width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle,rgba(34,197,94,.15),transparent);
+  pointer-events:none;
+}
+.auth-logo{
+  width:56px;height:56px;border-radius:16px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:20px;color:#fff;
+  box-shadow:0 8px 24px rgba(34,197,94,.3);
+}
+.auth-title{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
+.auth-sub{font-size:14px;color:var(--text3);margin-bottom:28px;line-height:1.5}
+.auth-tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--card);padding:4px;border-radius:12px;border:1px solid var(--border)}
+.auth-tab{
+  flex:1;padding:10px;border-radius:8px;background:transparent;
+  border:none;font-family:var(--font);font-size:13px;font-weight:600;
+  color:var(--text3);cursor:pointer;transition:var(--transition);
+}
+.auth-tab.active{background:var(--accent);color:#000;box-shadow:0 2px 8px rgba(34,197,94,.3)}
+.auth-field{margin-bottom:14px}
+.auth-label{display:block;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.auth-input{
+  width:100%;padding:13px 14px;border:1.5px solid var(--border);border-radius:12px;
+  background:var(--card);color:var(--text);font-family:var(--font);font-size:14px;font-weight:500;
+  outline:none;transition:var(--transition);
+}
+.auth-input:focus{border-color:var(--accent);background:var(--card2);box-shadow:0 0 0 3px rgba(34,197,94,.1)}
+.auth-input::placeholder{color:var(--text3);font-weight:400}
+.auth-submit{
+  width:100%;padding:14px;border-radius:12px;
+  background:var(--accent);color:#000;border:none;
+  font-family:var(--font);font-size:15px;font-weight:700;
+  cursor:pointer;transition:var(--transition);margin-top:8px;
+  letter-spacing:.2px;
+}
+.auth-submit:hover{background:var(--accent2);box-shadow:0 6px 20px rgba(34,197,94,.35);transform:translateY(-1px)}
+.auth-submit:disabled{background:var(--border);color:var(--text3);cursor:not-allowed;transform:none;box-shadow:none}
+.auth-err{font-size:13px;color:var(--red);margin-top:10px;display:none}
+.auth-err.show{display:block}
+.auth-footer{text-align:center;margin-top:20px;font-size:12px;color:var(--text3)}
+.auth-footer span{color:var(--accent);font-weight:600}
+.auth-guest{
+  display:block;width:100%;margin-top:10px;padding:11px;border-radius:10px;
+  background:transparent;border:1px solid var(--border);color:var(--text2);
+  font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;transition:var(--transition);
+}
+.auth-guest:hover{background:var(--card);color:var(--text)}
+
+/* ═══════════════════════════════════════════════════════
+   LEFT NAV RAIL (vertical)
+   ═══════════════════════════════════════════════════════ */
+#navRail{
+  position:fixed;top:0;bottom:0;left:0;z-index:1200;width:var(--rail-w);
+  background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:4px;
+  backdrop-filter:blur(20px);
+}
+.rail-logo{
+  width:42px;height:42px;border-radius:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;margin-bottom:14px;box-shadow:0 4px 14px rgba(34,197,94,.3);
+  cursor:pointer;transition:var(--transition);
+}
+.rail-logo:hover{transform:scale(1.05)}
+.rail-item{
+  width:48px;height:48px;border-radius:12px;background:transparent;border:none;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  color:var(--text3);transition:var(--transition);position:relative;
+  margin:2px 0;
+}
+.rail-item:hover{background:var(--card);color:var(--text)}
+.rail-item.active{color:var(--accent);background:var(--accent-bg)}
+.rail-item.active::before{
+  content:'';position:absolute;left:-10px;top:12px;bottom:12px;width:3px;
+  background:var(--accent);border-radius:0 3px 3px 0;
+}
+.rail-item svg{width:22px;height:22px}
+.rail-tt{
+  position:absolute;left:56px;top:50%;transform:translateY(-50%) translateX(-6px);
+  background:var(--card2);color:var(--text);font-size:12px;font-weight:600;
+  padding:6px 10px;border-radius:8px;border:1px solid var(--border);
+  white-space:nowrap;opacity:0;pointer-events:none;transition:var(--transition);
+  box-shadow:var(--shadow-sm);z-index:1500;
+}
+.rail-item:hover .rail-tt{opacity:1;transform:translateY(-50%) translateX(0)}
+.rail-spacer{flex:1}
+.rail-avatar{
+  width:42px;height:42px;border-radius:50%;
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:700;font-size:15px;
+  border:2px solid var(--border);cursor:pointer;
+  transition:var(--transition);
+}
+.rail-avatar:hover{border-color:var(--accent);transform:scale(1.05)}
+
+/* ═══════════════════════════════════════════════════════
+   TOP SEARCH CARD (compact, top-left, beside rail)
+   ═══════════════════════════════════════════════════════ */
+#searchWrap{
+  position:fixed;top:12px;left:calc(var(--rail-w) + 12px);z-index:900;
+  width:var(--panel-w);
+}
+.search-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;overflow:hidden;
+  box-shadow:var(--shadow);backdrop-filter:blur(20px);
+}
+.search-row{
+  display:flex;align-items:center;height:48px;padding:0 14px;gap:10px;
+  border-bottom:1px solid var(--border);cursor:text;
+}
+.search-row:last-child{border-bottom:none}
+.search-row:focus-within{background:rgba(255,255,255,.02)}
+.sdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.sdot-s{background:var(--accent);box-shadow:0 0 8px rgba(34,197,94,.5)}
+.sdot-e{background:var(--red);box-shadow:0 0 8px rgba(239,68,68,.5)}
+.sep-line{width:1px;height:14px;background:var(--border);flex-shrink:0}
+.sinput{
+  flex:1;border:none;outline:none;background:transparent;
+  font-family:var(--font);font-size:14px;color:var(--text);font-weight:500;min-width:0;
+}
+.sinput::placeholder{color:var(--text3);font-weight:400}
+.sclear{
+  width:22px;height:22px;border-radius:50%;background:var(--card2);
+  border:none;cursor:pointer;display:none;align-items:center;justify-content:center;
+  color:var(--text3);transition:var(--transition);font-size:11px;flex-shrink:0;
+}
+.sclear.vis{display:flex}
+.sclear:hover{background:var(--border);color:var(--text)}
+.swap-btn{
+  width:30px;height:30px;border-radius:8px;background:var(--card);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:pointer;
+  transition:var(--transition);flex-shrink:0;
+}
+.swap-btn:hover{background:var(--card2);color:var(--accent);border-color:var(--accent-border)}
+.swap-btn svg{width:14px;height:14px}
+
+/* ═══════════════════════════════════════════════════════
+   LEFT CONTENT PANEL (replaces bottom sheet)
+   ═══════════════════════════════════════════════════════ */
+#leftPanel{
+  position:fixed;top:130px;bottom:12px;left:calc(var(--rail-w) + 12px);z-index:850;
+  width:var(--panel-w);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;box-shadow:var(--shadow);backdrop-filter:blur(20px);
+  display:none;flex-direction:column;overflow:hidden;
+}
+#leftPanel.show{display:flex}
+.panel-scroll{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.panel-scroll::-webkit-scrollbar{width:6px}
+.panel-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.panel-scroll::-webkit-scrollbar-track{background:transparent}
+
+/* Panel header */
+.ph-hd{
+  display:flex;align-items:center;gap:10px;padding:14px 16px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.ph-back{
+  width:32px;height:32px;border-radius:8px;background:var(--card);
+  border:1px solid var(--border);display:flex;align-items:center;
+  justify-content:center;cursor:pointer;color:var(--text2);
+  transition:var(--transition);flex-shrink:0;
+}
+.ph-back:hover{background:var(--card2);color:var(--text)}
+.ph-title{font-size:15px;font-weight:700;color:var(--text);line-height:1.2}
+.ph-sub{font-size:11px;color:var(--text3);margin-top:2px;font-weight:500}
+.ph-close{
+  margin-left:auto;width:30px;height:30px;border-radius:8px;background:transparent;
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text3);transition:var(--transition);
+}
+.ph-close:hover{background:var(--card);color:var(--text)}
+
+.pb{padding:14px 16px}
+
+/* Empty state */
+.empty-state{text-align:center;padding:40px 20px}
+.es-ico{margin-bottom:14px}
+.es-ico svg{width:48px;height:48px;color:var(--accent);opacity:.7}
+.es-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px}
+.es-sub{font-size:13px;color:var(--text3);line-height:1.6}
+
+/* Loading state */
+.loading-state{text-align:center;padding:60px 20px}
+.loading-spinner{
+  width:36px;height:36px;border:3px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin .8s linear infinite;margin:0 auto 12px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-size:13px;color:var(--text3);font-weight:500}
+
+/* Mode chips row (at top of route options) */
+.mode-tabs{
+  display:flex;gap:6px;padding:12px 14px;
+  border-bottom:1px solid var(--border);
+  overflow-x:auto;scrollbar-width:none;flex-shrink:0;
+}
+.mode-tabs::-webkit-scrollbar{display:none}
+.mtab{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 12px;border-radius:10px;
+  border:1.5px solid var(--border);background:var(--card);
+  cursor:pointer;transition:var(--transition);flex-shrink:0;min-width:64px;
+}
+.mtab:hover{border-color:var(--accent-border);background:var(--card2)}
+.mtab.sel{border-color:var(--accent);background:var(--accent-bg)}
+.mtab svg{width:20px;height:20px;color:var(--text2)}
+.mtab.sel svg{color:var(--accent)}
+.mtab-lbl{font-size:10px;font-weight:600;color:var(--text3)}
+.mtab.sel .mtab-lbl{color:var(--accent)}
+
+/* Initial mode pick screen */
+.mode-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:8px;
+}
+.mode-big{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:20px 12px;border-radius:14px;
+  border:1.5px solid var(--border);background:var(--card);
+  cursor:pointer;transition:var(--transition);
+}
+.mode-big:hover{border-color:var(--accent);background:var(--card2);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+.mode-big svg{width:32px;height:32px;color:var(--text2)}
+.mode-big:hover svg{color:var(--accent)}
+.mode-big-lbl{font-size:13px;font-weight:600;color:var(--text)}
+.mode-big-sub{font-size:10px;color:var(--text3);text-align:center;line-height:1.3}
+
+/* Section label */
+.slabel{
+  font-size:10px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px;
+}
+
+/* Journey chips */
+.jchips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.jchip{
+  font-size:11px;font-weight:600;padding:5px 10px;
+  border-radius:8px;background:var(--card);color:var(--text2);
+  border:1px solid var(--border);display:flex;align-items:center;gap:4px;
+}
+
+/* AI Banner */
+.ai-banner{
+  background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(59,130,246,.08));
+  border:1px solid var(--accent-border);border-radius:12px;
+  padding:12px 14px;margin-bottom:12px;position:relative;overflow:hidden;
+}
+.ai-banner::before{
+  content:'';position:absolute;top:-30px;right:-30px;
+  width:70px;height:70px;border-radius:50%;
+  background:radial-gradient(circle,rgba(34,197,94,.18),transparent);
+}
+.ai-hd{
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;font-weight:700;color:var(--accent);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;
+}
+.ai-hd svg{width:13px;height:13px}
+.ai-txt{font-size:12px;line-height:1.6;color:var(--text2)}
+
+/* ═══ ROUTE CARDS (3 per mode) ═══ */
+.rcard{
+  background:var(--card);border-radius:12px;
+  border:1.5px solid var(--border);
+  padding:12px 12px 11px 16px;margin-bottom:8px;
+  cursor:pointer;transition:var(--transition);
+  position:relative;overflow:hidden;
+}
+.rcard::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:var(--border);border-radius:4px 0 0 4px;
+}
+.rcard:hover{border-color:var(--accent-border);background:var(--card2)}
+.rcard.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow-sm);background:var(--card2)}
+.rcard.best::before{background:var(--accent)}
+
+.rctop{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.rc-color{width:20px;height:20px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff}
+.rcname{font-size:13px;font-weight:700;color:var(--text);flex:1;line-height:1.2}
+.rctag{
+  font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;
+  background:var(--accent);color:#000;
+  text-transform:uppercase;letter-spacing:.4px;
+}
+.rc-eta{font-size:10px;color:var(--text3);font-weight:600;font-family:var(--mono)}
+
+.rcgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px}
+.rcs{background:var(--surface);border-radius:8px;padding:7px 4px;text-align:center}
+.rcsv{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);line-height:1.1}
+.rcsv span{font-size:9px;font-weight:400;color:var(--text3);font-family:var(--font)}
+.rcsl{font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;font-weight:600}
+
+.ebar{display:flex;align-items:center;gap:7px;margin-top:8px}
+.etrack{flex:1;height:4px;background:var(--surface);border-radius:2px;overflow:hidden}
+.efill{height:100%;border-radius:2px;transition:width .8s ease}
+.enum{font-size:10px;font-weight:700;white-space:nowrap;font-family:var(--mono)}
+
+.spills{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.spill{
+  font-size:10px;font-weight:600;padding:3px 8px;border-radius:10px;
+  display:flex;align-items:center;gap:3px;
+}
+.spill.green{background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border)}
+.spill.blue{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+
+/* ═══ PRIMARY BUTTON (sticky at bottom of panel) ═══ */
+.panel-footer{
+  padding:12px 14px;border-top:1px solid var(--border);
+  background:var(--surface);flex-shrink:0;
+}
+.btn-nav{
+  width:100%;padding:14px;border-radius:12px;
+  background:var(--accent);color:#000;border:none;
+  font-family:var(--font);font-size:14px;font-weight:700;
+  cursor:pointer;transition:var(--transition);
+  letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-nav:hover:not(:disabled){background:var(--accent2);box-shadow:0 4px 20px rgba(34,197,94,.3)}
+.btn-nav:disabled{background:var(--border);color:var(--text3);cursor:not-allowed}
+.btn-nav svg{width:18px;height:18px}
+
+.btn-sec{
+  width:100%;padding:11px;border-radius:10px;
+  background:var(--card);border:1px solid var(--border);
+  color:var(--text);font-family:var(--font);font-size:13px;font-weight:600;
+  cursor:pointer;transition:var(--transition);
+}
+.btn-sec:hover{background:var(--card2);border-color:var(--border2)}
+
+/* ═══════════════════════════════════════════════════════
+   BOTTOM-RIGHT FAB CLUSTER
+   ═══════════════════════════════════════════════════════ */
+#fabCluster{
+  position:fixed;right:14px;bottom:14px;z-index:800;
+  display:flex;flex-direction:column;gap:8px;
+}
+.fab{
+  width:46px;height:46px;border-radius:14px;
+  background:var(--surface);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text2);box-shadow:var(--shadow);
+  transition:var(--transition);
+}
+.fab:hover{background:var(--card);color:var(--text);transform:translateY(-1px);box-shadow:var(--shadow-lg)}
+.fab.primary{background:var(--accent);color:#000;border-color:var(--accent)}
+.fab.primary:hover{background:var(--accent2)}
+.fab-lbl{
+  position:absolute;right:56px;top:50%;transform:translateY(-50%);
+  background:var(--card2);color:var(--text);font-size:12px;font-weight:600;
+  padding:6px 10px;border-radius:8px;border:1px solid var(--border);
+  white-space:nowrap;opacity:0;pointer-events:none;transition:var(--transition);
+  box-shadow:var(--shadow-sm);
+}
+.fab{position:relative}
+.fab:hover .fab-lbl{opacity:1;transform:translateY(-50%) translateX(-4px)}
+
+/* ═══════════════════════════════════════════════════════
+   NAVIGATION VIEW (turn-by-turn, immersive)
+   ═══════════════════════════════════════════════════════ */
+#navView{
+  position:fixed;inset:0;z-index:2000;display:none;flex-direction:column;
+  pointer-events:none;
+}
+#navView.show{display:flex}
+#navView > *{pointer-events:auto}
+.nav-top{
+  margin:16px;padding:16px 18px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:18px;box-shadow:var(--shadow-lg);backdrop-filter:blur(20px);
+  display:flex;align-items:center;gap:14px;
+}
+.nav-dir-icon{
+  width:54px;height:54px;border-radius:14px;
+  background:var(--accent);color:#000;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.nav-dir-icon svg{width:30px;height:30px;stroke-width:2.5}
+.nav-dir-info{flex:1;min-width:0}
+.nav-dir-dist{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text);line-height:1.1}
+.nav-dir-dist span{font-size:13px;color:var(--text3);font-weight:500;font-family:var(--font)}
+.nav-dir-instr{font-size:14px;color:var(--text2);font-weight:500;margin-top:4px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.nav-bottom{
+  margin-top:auto;margin:auto 16px 16px;padding:14px 18px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:18px;box-shadow:var(--shadow-lg);backdrop-filter:blur(20px);
+}
+.nav-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.nav-stat{text-align:center}
+.nav-stat-v{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text);line-height:1}
+.nav-stat-v span{font-size:11px;color:var(--text3);font-weight:500;font-family:var(--font)}
+.nav-stat-l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;font-weight:600}
+.nav-actions{display:flex;gap:8px}
+.nav-end{
+  flex:1;padding:12px;border-radius:12px;background:var(--red);
+  color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:700;
+  cursor:pointer;transition:var(--transition);display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.nav-end:hover{background:#DC2626}
+.nav-mute{
+  width:44px;border-radius:12px;background:var(--card);border:1px solid var(--border);
+  color:var(--text2);cursor:pointer;transition:var(--transition);
+  display:flex;align-items:center;justify-content:center;
+}
+.nav-mute:hover{background:var(--card2);color:var(--text)}
+.nav-progress{
+  height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:12px;
+}
+.nav-progress-fill{
+  height:100%;background:linear-gradient(90deg,var(--accent),var(--lime));
+  border-radius:3px;transition:width .3s;
+}
+
+/* ═══════════════════════════════════════════════════════
+   PANELS (Impact, Leaderboard, Chat, Profile) — LEFT SIDE, NOT FULL SCREEN
+   ═══════════════════════════════════════════════════════ */
+.side-panel{
+  position:fixed;top:12px;bottom:12px;left:calc(var(--rail-w) + 12px);z-index:1100;
+  width:var(--panel-w);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;box-shadow:var(--shadow-lg);backdrop-filter:blur(20px);
+  transform:translateX(-120%);opacity:0;
+  transition:transform .3s cubic-bezier(.2,.8,.3,1),opacity .3s;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.side-panel.open{transform:translateX(0);opacity:1}
+
+/* ═══ STAT CARDS ═══ */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.stat-card{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;
+}
+.stat-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+.stat-val{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--text);line-height:1}
+.stat-label{font-size:10px;color:var(--text3);margin-top:4px;font-weight:500;text-transform:uppercase;letter-spacing:.3px}
+.stat-card.wide{grid-column:1/-1}
+
+/* ═══ BADGES ═══ */
+.badge-row{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px}
+.badge{
+  padding:5px 10px;border-radius:16px;font-size:11px;font-weight:600;
+  background:var(--card);border:1px solid var(--border);color:var(--text2);
+}
+
+/* ═══ LEADERBOARD ═══ */
+.lb-row{
+  display:flex;align-items:center;gap:10px;padding:11px 12px;
+  border-radius:12px;background:var(--card);
+  border:1px solid var(--border);margin-bottom:6px;transition:var(--transition);
+}
+.lb-row:hover{background:var(--card2)}
+.lb-row.me{border-color:var(--accent);background:var(--accent-bg)}
+.lb-rank{
+  width:28px;height:28px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:12px;
+  font-weight:700;flex-shrink:0;font-family:var(--mono);
+}
+.lb-rank.gold{background:rgba(245,158,11,.15);color:var(--orange)}
+.lb-rank.silver{background:rgba(156,163,175,.15);color:#9CA3AF}
+.lb-rank.bronze{background:rgba(180,130,80,.15);color:#B4824F}
+.lb-rank.normal{background:var(--card2);color:var(--text3)}
+.lb-info{flex:1;min-width:0}
+.lb-name{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-stat{font-size:11px;color:var(--text3)}
+.lb-val{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent)}
+
+/* ═══ CHAT ═══ */
+.chat-wrap{display:flex;flex-direction:column;flex:1;min-height:0}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.chat-msgs::-webkit-scrollbar{width:4px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.chat-msg{max-width:88%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.6}
+.chat-msg.user{
+  align-self:flex-end;background:var(--accent);color:#000;
+  border-bottom-right-radius:4px;font-weight:500;
+}
+.chat-msg.ai{
+  align-self:flex-start;background:var(--card);border:1px solid var(--border);
+  color:var(--text2);border-bottom-left-radius:4px;
+}
+.chat-input-row{
+  display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--border);
+  background:var(--surface);flex-shrink:0;
+}
+.chat-input{
+  flex:1;border:1.5px solid var(--border);border-radius:10px;
+  padding:10px 13px;font-family:var(--font);font-size:13px;
+  color:var(--text);background:var(--card);outline:none;transition:var(--transition);
+}
+.chat-input:focus{border-color:var(--accent)}
+.chat-input::placeholder{color:var(--text3)}
+.chat-send{
+  width:40px;border-radius:10px;background:var(--accent);
+  border:none;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:var(--transition);color:#000;
+}
+.chat-send:hover{background:var(--accent2)}
+.chat-send svg{width:18px;height:18px}
+
+/* ═══ PROFILE FORM ═══ */
+.form-group{margin-bottom:14px}
+.form-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;display:block}
+.form-input{
+  width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:10px;
+  background:var(--card);color:var(--text);font-family:var(--font);font-size:13px;
+  outline:none;transition:var(--transition);
+}
+.form-input:focus{border-color:var(--accent)}
+.slider-row{display:flex;align-items:center;gap:10px}
+.slider-row input[type=range]{flex:1;accent-color:var(--accent);height:4px}
+.slider-val{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);min-width:36px;text-align:right}
+
+.profile-hero{
+  display:flex;align-items:center;gap:12px;padding:14px;
+  background:linear-gradient(135deg,var(--accent-bg),rgba(59,130,246,.05));
+  border:1px solid var(--accent-border);border-radius:14px;margin-bottom:16px;
+}
+.profile-avatar{
+  width:50px;height:50px;border-radius:50%;
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:700;font-size:18px;flex-shrink:0;
+}
+.profile-name{font-size:15px;font-weight:700;color:var(--text);line-height:1.2}
+.profile-email{font-size:11px;color:var(--text3);margin-top:3px}
+.profile-logout{
+  width:100%;padding:11px;border-radius:10px;
+  background:transparent;border:1px solid var(--red-bg);
+  color:var(--red);font-family:var(--font);font-size:13px;font-weight:600;
+  cursor:pointer;transition:var(--transition);margin-top:10px;
+}
+.profile-logout:hover{background:var(--red-bg)}
+
+/* ═══ MAP OVERRIDES ═══ */
+.leaflet-control-zoom{margin:14px 14px 0 0!important}
+.leaflet-top.leaflet-right{top:calc(50% - 60px)}
+.leaflet-control-zoom a{
+  background:var(--surface)!important;color:var(--text)!important;
+  border-color:var(--border)!important;
+}
+.leaflet-control-attribution{display:none!important}
+.leaflet-popup-content-wrapper{
+  background:var(--surface);color:var(--text);border-radius:12px;
+  border:1px solid var(--border);font-family:var(--font);font-size:12px;
+  box-shadow:var(--shadow);
+}
+.leaflet-popup-tip{background:var(--surface)}
+.leaflet-popup-close-button{color:var(--text3)!important;font-size:18px!important}
+
+.poi-popup .leaflet-popup-content-wrapper{padding:0;border-radius:12px}
+.poi-popup .leaflet-popup-content{margin:0}
+.pp-loading{padding:12px 14px;font-size:12px;color:var(--text3)}
+.pp-wrap{padding:12px 14px;min-width:200px}
+.pp-name{font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px}
+.pp-addr{font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.4}
+.pp-btns{display:flex;flex-direction:column;gap:5px}
+.pp-btn{
+  padding:8px 12px;border-radius:8px;border:none;
+  font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;
+  transition:var(--transition);text-align:left;display:flex;align-items:center;gap:6px;
+}
+.pp-s{background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border)}
+.pp-s:hover{background:rgba(34,197,94,.15)}
+.pp-e{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.pp-e:hover{background:rgba(59,130,246,.15)}
+
+/* ═══ SIMULATED USER AVATARS ═══ */
+.av{
+  width:26px;height:26px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;
+  border:2px solid rgba(255,255,255,.12);
+  box-shadow:0 2px 6px rgba(0,0,0,.5);
+}
+.av svg{width:13px;height:13px;color:#fff}
+.av-car{background:var(--red)}
+.av-cp{background:var(--purple)}
+.av-walk{background:var(--accent)}
+.av-bus{background:var(--blue)}
+.av-bike{background:var(--orange)}
+.av-me{
+  width:28px;height:28px;background:var(--accent);border:2.5px solid white;
+  animation:pulse-me 2s ease-in-out infinite;
+}
+@keyframes pulse-me{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 10px rgba(34,197,94,0)}}
+
+/* ═══ SUCCESS TOAST ═══ */
+.toast{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--surface);border:1px solid var(--accent);border-radius:12px;
+  padding:12px 18px;font-size:13px;font-weight:600;color:var(--text);
+  box-shadow:var(--shadow-lg);z-index:2500;display:flex;align-items:center;gap:8px;
+  opacity:0;transition:var(--transition);pointer-events:none;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast svg{color:var(--accent);width:18px;height:18px}
+
+/* ═══ RESPONSIVE: small screens (< 640px) ═══ */
+@media (max-width:640px){
+  :root{--panel-w:calc(100vw - 88px)}
+  #searchWrap{width:calc(100vw - 88px)}
+  .mode-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- ═══ AUTH OVERLAY (first visit login/signup) ═══ -->
+<div id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+    </div>
+    <div class="auth-title">Welcome to EcoFlow</div>
+    <div class="auth-sub">Smart commute decisions for Malaysian cities. Track your eco-impact and save money.</div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="authSwitch('login')">Log in</button>
+      <button class="auth-tab" id="tabSignup" onclick="authSwitch('signup')">Sign up</button>
+    </div>
+
+    <div id="authSignupFields" style="display:none">
+      <div class="auth-field">
+        <label class="auth-label">Your name</label>
+        <input class="auth-input" id="aName" placeholder="e.g. Ahmad Razak" maxlength="40"/>
+      </div>
+    </div>
+
+    <div class="auth-field">
+      <label class="auth-label">Email</label>
+      <input class="auth-input" id="aEmail" type="email" placeholder="you@example.com" autocomplete="email"/>
+    </div>
+    <div class="auth-field">
+      <label class="auth-label">Password</label>
+      <input class="auth-input" id="aPass" type="password" placeholder="At least 6 characters" autocomplete="current-password"/>
+    </div>
+
+    <button class="auth-submit" id="aSubmit" onclick="authSubmit()">Log in</button>
+    <div class="auth-err" id="aErr"></div>
+
+    <button class="auth-guest" onclick="authGuest()">Continue as guest</button>
+
+    <div class="auth-footer" id="aFooter">
+      Need an account? <span onclick="authSwitch('signup')" style="cursor:pointer">Create one</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LEFT NAV RAIL ═══ -->
+<div id="navRail">
+  <div class="rail-logo" onclick="goMap()" title="EcoFlow">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+  </div>
+  <button class="rail-item active" id="railMap" onclick="navTo('map')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+    <span class="rail-tt">Routes</span>
+  </button>
+  <button class="rail-item" id="railImpact" onclick="navTo('impact')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4-4 8-7.5 8-12a8 8 0 1 0-16 0c0 4.5 4 8 8 12z"/><path d="M12 2v6M8 6l4-4 4 4"/></svg>
+    <span class="rail-tt">My Impact</span>
+  </button>
+  <button class="rail-item" id="railLB" onclick="navTo('leaderboard')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+    <span class="rail-tt">Leaderboard</span>
+  </button>
+  <button class="rail-item" id="railChat" onclick="navTo('chat')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span class="rail-tt">AI Chat</span>
+  </button>
+  <div class="rail-spacer"></div>
+  <div class="rail-avatar" id="railAvatar" onclick="navTo('profile')">?</div>
+</div>
+
+<!-- ═══ TOP SEARCH BAR ═══ -->
+<div id="searchWrap">
+  <div class="search-card">
+    <div class="search-row">
+      <div class="sdot sdot-s"></div>
+      <div class="sep-line"></div>
+      <input class="sinput" id="iStart" placeholder="Choose starting point" list="pl" autocomplete="off"
+        oninput="onInp('s',this.value)" onchange="onChg('s',this.value)"/>
+      <button class="sclear" id="clrS" onclick="clrIn('s',event)">✕</button>
+      <div class="swap-btn" onclick="swapLoc()" title="Swap start/end">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+      </div>
+    </div>
+    <div class="search-row">
+      <div class="sdot sdot-e"></div>
+      <div class="sep-line"></div>
+      <input class="sinput" id="iEnd" placeholder="Where to?" list="pl" autocomplete="off"
+        oninput="onInp('e',this.value)" onchange="onChg('e',this.value)"/>
+      <button class="sclear" id="clrE" onclick="clrIn('e',event)">✕</button>
+    </div>
+  </div>
+  <datalist id="pl">
+    <option value="KL Sentral|3.1340|101.6862">
+    <option value="KLCC|3.1579|101.7119">
+    <option value="Bukit Bintang|3.1466|101.7099">
+    <option value="Chow Kit|3.1622|101.6983">
+    <option value="Petaling Jaya|3.1073|101.6067">
+    <option value="Subang Jaya|3.0456|101.5796">
+    <option value="Shah Alam|3.0733|101.5185">
+    <option value="Putrajaya|2.9264|101.6964">
+    <option value="Cyberjaya|2.9202|101.6534">
+    <option value="Kepong|3.2113|101.6365">
+    <option value="Ampang|3.1478|101.7615">
+    <option value="Banting|2.8190|101.5024">
+    <option value="Klang|3.0449|101.4455">
+    <option value="Mid Valley|3.1177|101.6772">
+    <option value="Sunway Pyramid|3.0731|101.6069">
+    <option value="Bangsar|3.1300|101.6700">
+  </datalist>
+</div>
+
+<!-- ═══ LEFT CONTENT PANEL ═══ -->
+<div id="leftPanel">
+  <div id="panelContent" class="panel-scroll"></div>
+  <div id="panelFooterBar"></div>
+</div>
+
+<!-- ═══ BOTTOM-RIGHT FAB CLUSTER ═══ -->
+<div id="fabCluster">
+  <div class="fab" onclick="quickCP()" title="Carpool">
+    <span class="fab-lbl">Carpool</span>
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+  </div>
+  <div class="fab" id="fabTheme" onclick="toggleMode()" title="Toggle theme">
+    <span class="fab-lbl">Day / Night</span>
+    <svg id="modeIcon" class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+  </div>
+  <div class="fab primary" onclick="locateMe()" title="My location">
+    <span class="fab-lbl">My Location</span>
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+  </div>
+</div>
+
+<!-- ═══ IMPACT SIDE PANEL ═══ -->
+<div class="side-panel" id="panelImpact">
+  <div class="ph-hd">
+    <div style="flex:1">
+      <div class="ph-title">My Impact</div>
+      <div class="ph-sub">Your eco contribution</div>
+    </div>
+    <button class="ph-close" onclick="closeSidePanel()">✕</button>
+  </div>
+  <div class="panel-scroll pb" id="impactBody">
+    <div class="loading-state"><div class="loading-spinner"></div><div class="loading-txt">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ═══ LEADERBOARD SIDE PANEL ═══ -->
+<div class="side-panel" id="panelLB">
+  <div class="ph-hd">
+    <div style="flex:1">
+      <div class="ph-title">Eco Leaderboard</div>
+      <div class="ph-sub">Top eco-commuters this month</div>
+    </div>
+    <button class="ph-close" onclick="closeSidePanel()">✕</button>
+  </div>
+  <div class="panel-scroll pb" id="lbBody">
+    <div class="loading-state"><div class="loading-spinner"></div><div class="loading-txt">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ═══ CHAT SIDE PANEL ═══ -->
+<div class="side-panel" id="panelChat">
+  <div class="ph-hd">
+    <div style="flex:1">
+      <div class="ph-title">EcoFlow AI</div>
+      <div class="ph-sub">Your commute assistant</div>
+    </div>
+    <button class="ph-close" onclick="closeSidePanel()">✕</button>
+  </div>
+  <div class="chat-wrap">
+    <div class="chat-msgs" id="chatMsgs">
+      <div class="chat-msg ai">Hi! I'm your EcoFlow commute assistant. Ask me about routes, costs, carbon savings, or anything about commuting in KL/Selangor.</div>
+    </div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="chatInput" placeholder="Ask about your commute…" onkeydown="if(event.key==='Enter')sendChat()"/>
+      <button class="chat-send" onclick="sendChat()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PROFILE SIDE PANEL ═══ -->
+<div class="side-panel" id="panelProfile">
+  <div class="ph-hd">
+    <div style="flex:1">
+      <div class="ph-title">My Profile</div>
+      <div class="ph-sub">Preferences &amp; account</div>
+    </div>
+    <button class="ph-close" onclick="closeSidePanel()">✕</button>
+  </div>
+  <div class="panel-scroll pb" id="profileBody"></div>
+</div>
+
+<!-- ═══ NAVIGATION VIEW ═══ -->
+<div id="navView">
+  <div class="nav-top">
+    <div class="nav-dir-icon" id="navDirIcon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+    </div>
+    <div class="nav-dir-info">
+      <div class="nav-dir-dist" id="navNextDist">—<span> m</span></div>
+      <div class="nav-dir-instr" id="navInstr">Starting navigation…</div>
+    </div>
+  </div>
+  <div class="nav-bottom">
+    <div class="nav-progress"><div class="nav-progress-fill" id="navProg" style="width:0%"></div></div>
+    <div class="nav-stats">
+      <div class="nav-stat"><div class="nav-stat-v" id="navEta">—<span></span></div><div class="nav-stat-l">ETA</div></div>
+      <div class="nav-stat"><div class="nav-stat-v" id="navRemain">—<span> km</span></div><div class="nav-stat-l">Remaining</div></div>
+      <div class="nav-stat"><div class="nav-stat-v" id="navSpeed">—<span> km/h</span></div><div class="nav-stat-l">Speed</div></div>
+    </div>
+    <div class="nav-actions">
+      <button class="nav-end" onclick="endNav()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>
+        End Trip
+      </button>
+      <button class="nav-mute" id="navMuteBtn" onclick="toggleMute()" title="Mute voice">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TOAST ═══ -->
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toastTxt">Saved!</span>
+</div>
+
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   ECOFLOW ENGINE v4.0 — redesigned layout
+   ═══════════════════════════════════════════════════════ */
+const API = "http://localhost:8000";
+
+/* ─── USER / AUTH ─── */
+let USER = null;  // {id, email, name, guest}
+
+function loadUser(){
+  try {
+    const u = JSON.parse(localStorage.getItem('ecoflow_user') || 'null');
+    if (u && u.id) USER = u;
+  } catch(e) { USER = null; }
+}
+
+function saveUser(u){
+  USER = u;
+  localStorage.setItem('ecoflow_user', JSON.stringify(u));
+  updateAvatarUI();
+}
+
+function updateAvatarUI(){
+  const av = document.getElementById('railAvatar');
+  if (!av) return;
+  if (USER) {
+    const initial = (USER.name || USER.email || 'U').trim().charAt(0).toUpperCase();
+    av.textContent = initial;
+  } else {
+    av.textContent = '?';
+  }
+}
+
+function authSwitch(mode){
+  const login = mode === 'login';
+  document.getElementById('tabLogin').classList.toggle('active', login);
+  document.getElementById('tabSignup').classList.toggle('active', !login);
+  document.getElementById('authSignupFields').style.display = login ? 'none' : 'block';
+  document.getElementById('aSubmit').textContent = login ? 'Log in' : 'Create account';
+  document.getElementById('aFooter').innerHTML = login
+    ? `Need an account? <span onclick="authSwitch('signup')" style="cursor:pointer">Create one</span>`
+    : `Already have an account? <span onclick="authSwitch('login')" style="cursor:pointer">Log in</span>`;
+  document.getElementById('aErr').classList.remove('show');
+}
+
+function authGuest(){
+  const id = 'guest_' + Math.random().toString(36).slice(2,10);
+  saveUser({id, email:'guest', name:'Guest', guest:true});
+  hideAuth();
+}
+
+function hideAuth(){
+  document.getElementById('authOverlay').classList.remove('show');
+}
+
+function showAuth(){
+  document.getElementById('authOverlay').classList.add('show');
+}
+
+async function authSubmit(){
+  const isLogin = document.getElementById('tabLogin').classList.contains('active');
+  const email = document.getElementById('aEmail').value.trim().toLowerCase();
+  const pass  = document.getElementById('aPass').value;
+  const name  = document.getElementById('aName').value.trim();
+  const err = document.getElementById('aErr');
+  err.classList.remove('show');
+
+  if (!email || !email.includes('@')) {
+    err.textContent = 'Please enter a valid email.'; err.classList.add('show'); return;
+  }
+  if (!pass || pass.length < 6) {
+    err.textContent = 'Password must be at least 6 characters.'; err.classList.add('show'); return;
+  }
+  if (!isLogin && !name) {
+    err.textContent = 'Please enter your name.'; err.classList.add('show'); return;
+  }
+
+  // Local-only auth (stored in localStorage; the backend handles per-user_id records)
+  const users = JSON.parse(localStorage.getItem('ecoflow_users') || '{}');
+
+  if (isLogin) {
+    const u = users[email];
+    if (!u) { err.textContent = 'No account found. Sign up first.'; err.classList.add('show'); return; }
+    if (u.pass !== pass) { err.textContent = 'Incorrect password.'; err.classList.add('show'); return; }
+    saveUser({id:u.id, email:u.email, name:u.name, guest:false});
+  } else {
+    if (users[email]) { err.textContent = 'Account already exists. Log in instead.'; err.classList.add('show'); return; }
+    const id = 'user_' + Math.random().toString(36).slice(2,10);
+    users[email] = {id, email, name, pass};
+    localStorage.setItem('ecoflow_users', JSON.stringify(users));
+    saveUser({id, email, name, guest:false});
+
+    // Sync profile to backend (best-effort)
+    fetch(`${API}/api/v1/user-profile`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        user_id:id, prefer_fast:0.33, prefer_cheap:0.33, prefer_green:0.34, vehicle_type:'car'
+      })
+    }).catch(()=>{});
+  }
+  hideAuth();
+  showToast(isLogin ? `Welcome back, ${USER.name || USER.email}!` : `Welcome to EcoFlow!`);
+}
+
+function logout(){
+  localStorage.removeItem('ecoflow_user');
+  USER = null;
+  closeSidePanel();
+  showAuth();
+}
+
+/* ─── TOAST ─── */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastTxt').textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+/* ─── ICONS ─── */
+const ICONS = {
+  car: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18 10l-2.7-3.6A2 2 0 0 0 13.7 5H10.3a2 2 0 0 0-1.6.8L6 9l-2.5 1.1A2 2 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>`,
+  carpool: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  motorcycle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M12 17l-2-5h5l3 5"/><path d="M10 12L7.5 7H4"/><path d="M15 7h3l2 5"/></svg>`,
+  grab: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><path d="M9 10l3-3 3 3"/></svg>`,
+  bus: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6M16 6v6M2 12h20M6 18h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>`,
+  mrt: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="14" rx="2"/><path d="M4 11h16M9 22l-2-4M15 22l2-4M9 3v8M15 3v8"/><circle cx="7.5" cy="15" r="1"/><circle cx="16.5" cy="15" r="1"/></svg>`,
+  parkride: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><text x="6.5" y="8.5" text-anchor="middle" font-size="6" font-weight="bold" fill="currentColor" stroke="none">P</text><path d="M14 6h7M14 10h7M14 14h7M3 14h7M3 18h18"/></svg>`,
+  cycle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17l3.5-7h5l2.5 7"/><path d="M9.5 10L12 4h3"/></svg>`,
+  walk: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.5"/><path d="M10 22l2-7M14 22l-1.5-8.5L10 11"/><path d="M8 14l2-3 4 1 3-3"/></svg>`,
+  leaf: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>`,
+  tree: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V13"/><path d="M8 22h8"/><path d="M12 2L7 10h10L12 2z"/><path d="M12 7L5 17h14L12 7z"/></svg>`,
+  sparkle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></svg>`,
+  clock: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  pin: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
+  money: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+  fuel: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></svg>`,
+  navStart: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`,
+};
+function iconSized(key, size) {
+  return (ICONS[key]||ICONS.car).replace(/width="\d+"/, `width="${size}"`).replace(/height="\d+"/, `height="${size}"`);
+}
+
+const MODE_ICON_MAP = {
+  "Drive": "car", "Carpool": "carpool", "Motorcycle": "motorcycle",
+  "Grab / E-hailing": "grab", "Bus / RapidKL": "bus", "MRT / LRT": "mrt",
+  "Park & Ride": "parkride", "Cycling": "cycle", "Walking": "walk",
+};
+const MC = {
+  "Drive":"#EF4444","Carpool":"#A855F7","Motorcycle":"#F97316",
+  "Grab / E-hailing":"#F59E0B","Bus / RapidKL":"#3B82F6","MRT / LRT":"#06B6D4",
+  "Park & Ride":"#0891B2","Cycling":"#84CC16","Walking":"#22C55E",
+};
+const CC = {"None":"#22C55E","Very Low":"#84CC16","Low":"#F59E0B","Medium":"#F97316","High":"#EF4444","Very High":"#B91C1C"};
+const ROUTE_VARIANT_COLORS = ["#22C55E", "#3B82F6", "#F59E0B"];  // 3 route variants
+const ROUTE_VARIANT_NAMES  = ["Fastest", "Scenic", "Alternate"];
+
+function getIcon(mode) { return ICONS[MODE_ICON_MAP[mode] || 'car'] || ICONS.car; }
+function getIconBg(mode) { const c = MC[mode] || '#888'; return `background:${c}18;color:${c}`; }
+
+/* ─── MAP ─── */
+const MAPBOX_TOKEN = 'REACT_APP_MAPBOX_KEY';
+const map = L.map('map', {zoomControl: true, attributionControl: false}).setView([3.139, 101.687], 13);
+const TILES = {
+  day: `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
+  night: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
+};
+let currentMode = null, tileLayer = null;
+function getMode() { const h = new Date().getHours(); return (h >= 6 && h < 19) ? 'day' : 'night'; }
+function applyMode(mode) {
+  if (mode === currentMode) return;
+  currentMode = mode;
+  if (tileLayer) map.removeLayer(tileLayer);
+  tileLayer = L.tileLayer(TILES[mode], {maxZoom: 19, tileSize: 256}).addTo(map);
+  const icon = document.getElementById('modeIcon');
+  if (mode === 'night') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+applyMode(getMode());
+function toggleMode() { applyMode(currentMode === 'day' ? 'night' : 'day'); }
+setInterval(() => applyMode(getMode()), 60000);
+
+/* ─── SIMULATED USERS ─── */
+const UT = [
+  {c:'av-car', icon:'car'}, {c:'av-cp', icon:'carpool'},
+  {c:'av-walk', icon:'walk'}, {c:'av-bus', icon:'bus'}, {c:'av-bike', icon:'cycle'},
+];
+let sU = [], sO = true, sM = true, meM = null, meP = [3.139, 101.687];
+function rKL() { return [3.083 + Math.random() * .135, 101.623 + Math.random() * .112]; }
+function mIco(c, iconKey) {
+  const svg = ICONS[iconKey] || ICONS.car;
+  return L.divIcon({
+    html: `<div class="av ${c}">${svg.replace('width="20"','width="13"').replace('height="20"','height="13"')}</div>`,
+    className: '', iconAnchor: [13, 13],
+  });
+}
+function spawn(n = 14) {
+  sU.forEach(u => map.removeLayer(u.m)); sU = [];
+  if (!sO) return;
+  for (let i = 0; i < n; i++) {
+    const t = UT[Math.floor(Math.random() * UT.length)];
+    const p = rKL();
+    const m = L.marker(p, {icon: mIco(t.c, t.icon)}).addTo(map);
+    sU.push({p, v: [(Math.random()-.5)*.00015, (Math.random()-.5)*.00015], m});
+  }
+}
+function move() {
+  sU.forEach(u => {
+    u.p[0] += u.v[0] + (Math.random()-.5)*.00003;
+    u.p[1] += u.v[1] + (Math.random()-.5)*.00003;
+    if (u.p[0] < 3.08 || u.p[0] > 3.22) u.v[0] *= -1;
+    if (u.p[1] < 101.62 || u.p[1] > 101.74) u.v[1] *= -1;
+    u.m.setLatLng(u.p);
+  });
+}
+function plMe() {
+  if (meM) map.removeLayer(meM);
+  if (!sM) return;
+  meM = L.marker(meP, {
+    icon: L.divIcon({
+      html: `<div class="av av-me">${ICONS.pin.replace('currentColor','#fff').replace('width="20"','width="14"').replace('height="20"','height="14"')}</div>`,
+      className: '', iconAnchor: [14, 14],
+    })
+  }).addTo(map).bindPopup('<b style="color:#22C55E">You</b>');
+}
+spawn(14); plMe(); setInterval(move, 1400);
+
+map.on('zoomend', function() {
+  const z = map.getZoom();
+  if (z < 11) { sU.forEach(u => u.m.setOpacity(0)); if(meM) meM.setOpacity(0); }
+  else if (z < 13) { sU.forEach((u,i) => u.m.setOpacity(i%3===0?1:0)); if(meM) meM.setOpacity(1); }
+  else { sU.forEach(u => u.m.setOpacity(1)); if(meM) meM.setOpacity(1); }
+});
+
+function locateMe() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      meP = [pos.coords.latitude, pos.coords.longitude];
+      plMe();
+      map.setView(meP, 15, {animate: true});
+    }, () => map.setView(meP, 15, {animate: true}), {timeout: 4000});
+  } else {
+    map.setView(meP, 15, {animate: true});
+  }
+}
+
+/* ─── SEARCH INPUT ─── */
+let C = {s: null, e: null};
+function pp(v) { const a = v.split('|'); return a.length === 3 ? {name: a[0], lat: +a[1], lon: +a[2]} : null; }
+function onInp(k, v) { document.getElementById(k==='s'?'clrS':'clrE').classList.toggle('vis', v.length > 0); }
+function onChg(k, v) {
+  const p = pp(v);
+  if (p) {
+    if (k==='s') C.s = p; else C.e = p;
+    const inp = document.getElementById(k==='s'?'iStart':'iEnd');
+    inp.value = p.name;
+    if (C.s && C.e) { openPanel(); step('mode'); }
+  }
+}
+function clrIn(k, e) {
+  e.stopPropagation();
+  const id = k==='s' ? 'iStart' : 'iEnd';
+  document.getElementById(id).value = '';
+  document.getElementById(k==='s'?'clrS':'clrE').classList.remove('vis');
+  if (k==='s') C.s = null; else C.e = null;
+  if (!C.s || !C.e) closePanel();
+  clrMap();
+}
+function swapLoc() {
+  [C.s, C.e] = [C.e, C.s];
+  document.getElementById('iStart').value = C.s ? C.s.name : '';
+  document.getElementById('iEnd').value = C.e ? C.e.name : '';
+  document.getElementById('clrS').classList.toggle('vis', !!C.s);
+  document.getElementById('clrE').classList.toggle('vis', !!C.e);
+  if (C.s && C.e) { openPanel(); step('mode'); }
+}
+
+/* ─── PANEL STATE ─── */
+let J = {mode: null, mix: null, cp: null, selectedRoute: null};
+
+function openPanel(){ document.getElementById('leftPanel').classList.add('show'); }
+function closePanel(){
+  document.getElementById('leftPanel').classList.remove('show');
+  document.getElementById('panelContent').innerHTML = '';
+  document.getElementById('panelFooterBar').innerHTML = '';
+}
+
+function getAutoTime() {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+}
+
+
+/* ─── NAV RAIL ─── */
+function navTo(tab) {
+  // Update rail active state
+  document.querySelectorAll('.rail-item').forEach(n => n.classList.remove('active'));
+  if (tab === 'map')       document.getElementById('railMap').classList.add('active');
+  if (tab === 'impact')    document.getElementById('railImpact').classList.add('active');
+  if (tab === 'leaderboard') document.getElementById('railLB').classList.add('active');
+  if (tab === 'chat')      document.getElementById('railChat').classList.add('active');
+
+  // Hide all side panels
+  document.querySelectorAll('.side-panel').forEach(p => p.classList.remove('open'));
+
+  if (tab === 'map')          return;
+  if (tab === 'impact')     { document.getElementById('panelImpact').classList.add('open'); loadImpact(); }
+  if (tab === 'leaderboard'){ document.getElementById('panelLB').classList.add('open'); loadLeaderboard(); }
+  if (tab === 'chat')       { document.getElementById('panelChat').classList.add('open'); }
+  if (tab === 'profile')    { document.getElementById('panelProfile').classList.add('open'); loadProfile(); }
+}
+function closeSidePanel() {
+  document.querySelectorAll('.side-panel').forEach(p => p.classList.remove('open'));
+  document.querySelectorAll('.rail-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('railMap').classList.add('active');
+}
+function goMap() { closeSidePanel(); }
+
+/* ─── STEPS ─── */
+function step(s) {
+  const pc = document.getElementById('panelContent');
+  const pf = document.getElementById('panelFooterBar');
+
+  if (s === 'mode') {
+    pc.innerHTML = `
+      <div class="ph-hd">
+        <div style="flex:1">
+          <div class="ph-title">How are you travelling?</div>
+          <div class="ph-sub">${C.s?.name} → ${C.e?.name}</div>
+        </div>
+        <button class="ph-close" onclick="closePanel()">✕</button>
+      </div>
+      <div class="pb">
+        <div class="slabel">Pick a mode</div>
+        <div class="mode-grid">
+          <div class="mode-big" onclick="selM('Drive')">
+            <div style="color:${MC.Drive}">${iconSized('car',32)}</div>
+            <div class="mode-big-lbl">Drive</div>
+            <div class="mode-big-sub">Your own car</div>
+          </div>
+          <div class="mode-big" onclick="selM('Carpool')">
+            <div style="color:${MC.Carpool}">${iconSized('carpool',32)}</div>
+            <div class="mode-big-lbl">Carpool</div>
+            <div class="mode-big-sub">Share the ride</div>
+          </div>
+          <div class="mode-big" onclick="selM('Walking')">
+            <div style="color:${MC.Walking}">${iconSized('walk',32)}</div>
+            <div class="mode-big-lbl">Walking</div>
+            <div class="mode-big-sub">Zero emissions</div>
+          </div>
+          <div class="mode-big" onclick="selM('MRT / LRT')">
+            <div style="color:${MC['MRT / LRT']}">${iconSized('mrt',32)}</div>
+            <div class="mode-big-lbl">Transit</div>
+            <div class="mode-big-sub">MRT · LRT · Bus</div>
+          </div>
+          <div class="mode-big" onclick="selM('Cycling')">
+            <div style="color:${MC.Cycling}">${iconSized('cycle',32)}</div>
+            <div class="mode-big-lbl">Cycling</div>
+            <div class="mode-big-sub">Healthy &amp; green</div>
+          </div>
+          <div class="mode-big" onclick="selM('Grab / E-hailing')">
+            <div style="color:${MC['Grab / E-hailing']}">${iconSized('grab',32)}</div>
+            <div class="mode-big-lbl">E-hailing</div>
+            <div class="mode-big-sub">Grab · InDrive</div>
+          </div>
+        </div>
+        <div class="slabel">Why EcoFlow</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.7;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:12px">
+          We compare <b style="color:var(--text2)">3 different routes</b> for every mode by time, cost, fuel, carbon &amp; congestion — then Gemini AI recommends the best one for Malaysian commuters.
+        </div>
+      </div>`;
+    pf.innerHTML = '';
+  }
+  else if (s === 'cp-ask') {
+    pc.innerHTML = `
+      <div class="ph-hd">
+        <button class="ph-back" onclick="step('mode')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+        <div style="flex:1">
+          <div class="ph-title">Carpool</div>
+          <div class="ph-sub">Choose your role</div>
+        </div>
+      </div>
+      <div class="pb">
+        <div class="mode-big" style="flex-direction:row;gap:12px;padding:14px;margin-bottom:10px" onclick="J.cp=true;getRoute()">
+          <div style="width:36px;height:36px;border-radius:10px;${getIconBg('Carpool')};display:flex;align-items:center;justify-content:center">${ICONS.car}</div>
+          <div style="flex:1;text-align:left">
+            <div class="mode-big-lbl" style="font-size:14px">I'm driving — offer seats</div>
+            <div class="mode-big-sub" style="text-align:left;font-size:11px">Earn eco credits · split fuel</div>
+          </div>
+        </div>
+        <div class="mode-big" style="flex-direction:row;gap:12px;padding:14px" onclick="J.cp=false;getRoute()">
+          <div style="width:36px;height:36px;border-radius:10px;background:var(--blue-bg);color:var(--blue);display:flex;align-items:center;justify-content:center">${ICONS.carpool}</div>
+          <div style="flex:1;text-align:left">
+            <div class="mode-big-lbl" style="font-size:14px">I need a ride</div>
+            <div class="mode-big-sub" style="text-align:left;font-size:11px">Match with drivers going your way</div>
+          </div>
+        </div>
+      </div>`;
+    pf.innerHTML = '';
+  }
+}
+
+function selM(mode) {
+  J.mode = mode;
+  if (mode === 'Carpool') { step('cp-ask'); return; }
+  getRoute();
+}
+
+/* ═══════════════════════════════════════════════════════
+   ROUTE FETCHING — 3 variants per mode
+   ═══════════════════════════════════════════════════════ */
+const VM = {
+  'Drive':'car','Carpool':'car','Motorcycle':'motorcycle',
+  'Grab / E-hailing':'car','Bus / RapidKL':'none','MRT / LRT':'none',
+  'Park & Ride':'car','Cycling':'none','Walking':'none',
+};
+const PM = {
+  'Drive':'fast','Carpool':'balanced','Motorcycle':'balanced',
+  'Grab / E-hailing':'fast','Bus / RapidKL':'eco','MRT / LRT':'eco',
+  'Park & Ride':'balanced','Cycling':'eco','Walking':'eco',
+};
+
+// Map user-facing mode to OSRM profile
+const MODE_PROFILE = {
+  "Drive": "driving", "Carpool": "driving", "Motorcycle": "driving",
+  "Grab / E-hailing": "driving", "Park & Ride": "driving",
+  "Bus / RapidKL": "driving",
+  "MRT / LRT": "foot",
+  "Cycling": "bicycle",
+  "Walking": "foot",
+};
+
+async function getRoute() {
+  const pc = document.getElementById('panelContent');
+  const pf = document.getElementById('panelFooterBar');
+  pc.innerHTML = `
+    <div class="ph-hd">
+      <button class="ph-back" onclick="step('mode')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1"><div class="ph-title">Finding routes…</div><div class="ph-sub">${J.mode}</div></div>
+    </div>
+    <div class="loading-state"><div class="loading-spinner"></div><div class="loading-txt">AI is analysing routes…</div></div>`;
+  pf.innerHTML = '';
+
+  try {
+    // Call backend for per-mode metrics + AI recommendation
+    const r = await fetch(`${API}/api/v1/full-analysis`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        user_id: USER?.id || 'anon',
+        start_lat: C.s.lat, start_lon: C.s.lon,
+        end_lat: C.e.lat, end_lon: C.e.lon,
+        departure_time: getAutoTime(),
+        vehicle_type: VM[J.mode] || 'car',
+        priority: PM[J.mode] || 'balanced',
+        language: 'en',
+      })
+    });
+    const data = await r.json();
+    window._lastAnalysis = data;
+
+    // Get 3 OSRM alternatives for the chosen mode's profile
+    const profile = MODE_PROFILE[J.mode] || 'driving';
+    const paths = await fetchOSRMAlternatives(profile);
+
+    // Build 3 variant options for the selected mode
+    const baseOpt = data.all_options_ranked_by_eco.find(o => o.mode === J.mode)
+                 || data.all_options_ranked_by_eco[0];
+    const variants = buildRouteVariants(baseOpt, paths, data.journey.distance_km);
+
+    renderRouteOptions(data, variants, paths);
+    drawMapRoutes(paths, variants);
+
+  } catch(err) {
+    console.error(err);
+    pc.innerHTML = `
+      <div class="ph-hd">
+        <button class="ph-back" onclick="step('mode')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+        <div style="flex:1"><div class="ph-title">Backend offline</div></div>
+      </div>
+      <div class="empty-state">
+        <div class="es-ico"><svg width="48" height="48" viewBox="0 0 24 24" style="color:var(--orange)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+        <div class="es-title">Can't reach server</div>
+        <div class="es-sub">Start the backend:<br><code style="font-family:var(--mono);background:var(--card);padding:4px 8px;border-radius:6px">uvicorn main:app --reload</code></div>
+      </div>`;
+  }
+}
+
+async function fetchOSRMAlternatives(profile) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${C.s.lon},${C.s.lat};${C.e.lon},${C.e.lat}?overview=full&geometries=geojson&alternatives=3&steps=true`;
+    const r = await fetch(url, {signal: AbortSignal.timeout(8000)});
+    const d = await r.json();
+    if (d.routes && d.routes.length > 0) {
+      return d.routes.slice(0,3).map(rt => ({
+        coords: rt.geometry.coordinates.map(c => [c[1], c[0]]),
+        distance_m: rt.distance,
+        duration_s: rt.duration,
+        steps: (rt.legs && rt.legs[0] && rt.legs[0].steps) ? rt.legs[0].steps : [],
+      }));
+    }
+  } catch(e) { console.warn('OSRM alt failed:', e); }
+  // Fallback single straight line
+  const dist = haversine(C.s.lat, C.s.lon, C.e.lat, C.e.lon) * 1000;
+  return [{coords:[[C.s.lat,C.s.lon],[C.e.lat,C.e.lon]], distance_m:dist, duration_s:dist/10, steps:[]}];
+}
+
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371, dL=(lat2-lat1)*Math.PI/180, dO=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dL/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dO/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function buildRouteVariants(baseOpt, paths, baseDistKm) {
+  // Generate n variants, each scaled from baseOpt by actual path distance
+  const out = [];
+  const n = Math.min(paths.length, 3);
+  // Best carbon = shortest path; best time = fastest; etc
+  for (let i = 0; i < n; i++) {
+    const p = paths[i];
+    const distKm = p.distance_m / 1000;
+    const durMin = p.duration_s / 60;
+    const scale = baseDistKm > 0 ? distKm / baseDistKm : 1;
+
+    // Per-variant estimates: scale the base mode estimates
+    const time_mins = Math.max(1, Math.round(baseOpt.time_mins * (durMin > 0 && baseDistKm > 0 ? (p.duration_s/60) / (baseOpt.time_mins) : scale)));
+    const cost_rm   = +(baseOpt.cost_rm * scale).toFixed(2);
+    const carbon_kg = +(baseOpt.carbon_kg * scale).toFixed(3);
+    // Fuel only applies to driving modes
+    const isDriving = ['Drive','Carpool','Motorcycle','Grab / E-hailing','Park & Ride'].includes(J.mode);
+    // Malaysia avg car fuel economy ~12 km/L for car, 40 km/L for motorcycle
+    const kmPerL = J.mode === 'Motorcycle' ? 40 : 12;
+    const fuel_l = isDriving ? +(distKm / kmPerL).toFixed(2) : 0;
+    // Carpool halves per-person cost/fuel/carbon
+    const carpoolDiv = J.mode === 'Carpool' ? 2 : 1;
+
+    // ETA
+    const now = new Date();
+    const eta = new Date(now.getTime() + time_mins*60000);
+    const etaStr = `${String(eta.getHours()).padStart(2,'0')}:${String(eta.getMinutes()).padStart(2,'0')}`;
+
+    // Eco score: scale the base eco score; shortest distance gets small boost, longest slight penalty
+    const ecoAdj = i === 0 ? 0 : (i === 1 ? -3 : -6);
+    const eco_score = Math.max(0, Math.min(100, Math.round(baseOpt.eco_score + ecoAdj - (scale-1)*20)));
+
+    out.push({
+      idx: i,
+      variantName: ROUTE_VARIANT_NAMES[i] || `Route ${i+1}`,
+      color: ROUTE_VARIANT_COLORS[i] || '#888',
+      mode: J.mode,
+      time_mins,
+      cost_rm: +(cost_rm/carpoolDiv).toFixed(2),
+      carbon_kg: +(carbon_kg/carpoolDiv).toFixed(3),
+      distance_km: +distKm.toFixed(2),
+      fuel_l: +(fuel_l/carpoolDiv).toFixed(2),
+      eta: etaStr,
+      eco_score,
+      carbon_saved_vs_driving: baseOpt.carbon_saved_vs_driving || 0,
+      cost_saved_vs_driving: baseOpt.cost_saved_vs_driving || 0,
+      congestion: baseOpt.congestion,
+      pathIdx: i,
+    });
+  }
+  return out;
+}
+
+/* ═══ RENDER ROUTE OPTIONS UI ═══ */
+function renderRouteOptions(data, variants, paths) {
+  const pc = document.getElementById('panelContent');
+  const pf = document.getElementById('panelFooterBar');
+  const j = data.journey;
+
+  // AI picks best variant: highest eco score
+  const bestVariant = variants.reduce((a,b) => a.eco_score >= b.eco_score ? a : b, variants[0]);
+  bestVariant.isBest = true;
+  J.selectedRoute = bestVariant;
+
+  // Mode tab switcher HTML — allows switching mode without going back
+  const allModes = data.all_options_ranked_by_eco || [];
+  const modeTabsHTML = allModes.map(o => `
+    <div class="mtab ${o.mode === J.mode ? 'sel' : ''}" onclick="switchMode('${o.mode.replace(/'/g, "\\'")}')">
+      <div>${getIcon(o.mode)}</div>
+      <div class="mtab-lbl">${o.mode.split(' ')[0].split('/')[0]}</div>
+    </div>
+  `).join('');
+
+  pc.innerHTML = `
+    <div class="ph-hd">
+      <button class="ph-back" onclick="step('mode')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1">
+        <div class="ph-title">Route Options</div>
+        <div class="ph-sub">${C.s?.name} → ${C.e?.name}</div>
+      </div>
+      <button class="ph-close" onclick="closePanel()">✕</button>
+    </div>
+    <div class="mode-tabs">${modeTabsHTML}</div>
+    <div class="pb">
+      <div class="jchips">
+        <span class="jchip">${iconSized('pin',12)} ${j.distance_km} km</span>
+        <span class="jchip">${iconSized('clock',12)} ${j.departure_time}</span>
+        <span class="jchip" style="background:${CC[j.congestion]||'#F59E0B'}18;color:${CC[j.congestion]||'#F59E0B'};border-color:${CC[j.congestion]||'#F59E0B'}40">${j.congestion} traffic</span>
+      </div>
+      <div class="ai-banner">
+        <div class="ai-hd">${iconSized('sparkle',13)} AI Recommendation</div>
+        <div class="ai-txt">${data.ai_recommendation}</div>
+      </div>
+      <div class="slabel">${variants.length} ${J.mode} routes · click to preview</div>
+      <div id="variantList">${variants.map(v => renderVariantCard(v)).join('')}</div>
+    </div>`;
+
+  pf.innerHTML = `
+    <button class="btn-nav" id="startNavBtn" onclick="startNavigation()">
+      ${ICONS.navStart}
+      Start Navigation
+    </button>`;
+}
+
+function switchMode(mode) {
+  if (mode === J.mode) return;
+  J.mode = mode;
+  if (mode === 'Carpool') { step('cp-ask'); return; }
+  getRoute();
+}
+
+function renderVariantCard(v) {
+  const col = v.color;
+  const ec  = v.eco_score >= 75 ? '#22C55E' : v.eco_score >= 45 ? '#F59E0B' : '#EF4444';
+  const isDriving = ['Drive','Carpool','Motorcycle','Grab / E-hailing','Park & Ride'].includes(v.mode);
+  const sel = J.selectedRoute && J.selectedRoute.idx === v.idx ? 'selected' : '';
+
+  return `<div class="rcard ${sel} ${v.isBest?'best':''}" data-vidx="${v.idx}" onclick="selectVariant(${v.idx})">
+    <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:${col};border-radius:4px 0 0 4px;"></div>
+    <div class="rctop">
+      <div class="rc-color" style="background:${col}">${v.idx+1}</div>
+      <div class="rcname">${v.variantName} ${v.isBest?'':''}</div>
+      ${v.isBest ? `<span class="rctag">Best</span>` : `<span class="rc-eta">ETA ${v.eta}</span>`}
+    </div>
+    <div class="rcgrid">
+      <div class="rcs"><div class="rcsv">${v.time_mins}<span>m</span></div><div class="rcsl">Time</div></div>
+      <div class="rcs"><div class="rcsv"><span>RM</span>${v.cost_rm}</div><div class="rcsl">Cost</div></div>
+      <div class="rcs"><div class="rcsv">${v.carbon_kg}<span>kg</span></div><div class="rcsl">CO₂</div></div>
+      ${isDriving
+        ? `<div class="rcs"><div class="rcsv">${v.fuel_l}<span>L</span></div><div class="rcsl">Fuel</div></div>`
+        : `<div class="rcs"><div class="rcsv">${v.distance_km}<span>km</span></div><div class="rcsl">Dist</div></div>`}
+    </div>
+    ${v.isBest ? `<div style="font-size:10px;color:var(--text3);margin-top:4px">Arrives ${v.eta}</div>`:''}
+    <div class="ebar">
+      <div class="etrack"><div class="efill" style="width:${v.eco_score}%;background:${ec}"></div></div>
+      <span class="enum" style="color:${ec}">ECO ${v.eco_score}</span>
+    </div>
+    ${v.carbon_saved_vs_driving > 0 ? `<div class="spills">
+      <span class="spill green">${iconSized('leaf',11)} −${v.carbon_saved_vs_driving}kg CO₂</span>
+      ${v.cost_saved_vs_driving>0?`<span class="spill blue">−RM${v.cost_saved_vs_driving}</span>`:''}
+    </div>` : ''}
+  </div>`;
+}
+
+function selectVariant(idx) {
+  const variants = window._variants || [];
+  const v = variants.find(x => x.idx === idx);
+  if (!v) return;
+  J.selectedRoute = v;
+  // Highlight on map
+  highlightPath(idx);
+  // Update cards
+  document.querySelectorAll('.rcard').forEach(c => c.classList.toggle('selected', +c.dataset.vidx === idx));
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   MAP DRAWING — 3 route variants with different colors
+   ═══════════════════════════════════════════════════════ */
+let rL = [], mL = [];  // route layers, marker layers
+let _paths = null;      // cached OSRM paths for current route
+
+function clrMap() {
+  rL.forEach(l => map.removeLayer(l));
+  mL.forEach(l => map.removeLayer(l));
+  rL = []; mL = [];
+  _paths = null;
+}
+
+function drawMapRoutes(paths, variants) {
+  clrMap();
+  _paths = paths;
+  window._variants = variants;
+  if (!C.s || !C.e) return;
+
+  const s = [C.s.lat, C.s.lon], e = [C.e.lat, C.e.lon];
+
+  // Start/End markers
+  const mk = (bg, glow) => L.divIcon({
+    html: `<div style="width:16px;height:16px;background:${bg};border:3px solid rgba(255,255,255,.9);border-radius:50%;box-shadow:0 0 12px ${glow},0 2px 8px rgba(0,0,0,.4)"></div>`,
+    className: '', iconAnchor: [8, 8],
+  });
+  mL.push(L.marker(s, {icon: mk('#22C55E','rgba(34,197,94,.6)')}).addTo(map).bindPopup(`<b>${C.s.name}</b>`));
+  mL.push(L.marker(e, {icon: mk('#EF4444','rgba(239,68,68,.6)')}).addTo(map).bindPopup(`<b>${C.e.name}</b>`));
+
+  // Draw all paths (inactive ones thinner/faded, selected one bold)
+  const selIdx = J.selectedRoute ? J.selectedRoute.idx : 0;
+  paths.forEach((p, i) => {
+    const v = variants[i];
+    if (!v) return;
+    const isSel = i === selIdx;
+    const polyline = L.polyline(p.coords, {
+      color: v.color,
+      weight: isSel ? 7 : 4,
+      opacity: isSel ? 0.95 : 0.45,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }).addTo(map);
+    polyline.bindPopup(`
+      <div style="font-family:var(--font);padding:4px 2px">
+        <b style="color:${v.color}">${v.variantName}</b> · ${v.mode}<br>
+        <span style="color:#A0AAB8">${v.time_mins} min · RM${v.cost_rm} · ${v.carbon_kg}kg CO₂</span><br>
+        <span style="color:${v.eco_score>=75?'#22C55E':v.eco_score>=45?'#F59E0B':'#EF4444'}">Eco ${v.eco_score}/100</span>
+      </div>`);
+    polyline.on('click', () => selectVariant(i));
+    rL.push(polyline);
+  });
+
+  // Fit bounds including all paths
+  const allBounds = L.latLngBounds([s, e]);
+  paths.forEach(p => p.coords.forEach(c => allBounds.extend(c)));
+  map.fitBounds(allBounds, {padding: [60, 60], paddingTopLeft:[480, 60]});  // pad left for panel
+}
+
+function highlightPath(idx) {
+  if (!_paths) return;
+  const selIdx = idx;
+  rL.forEach((pl, i) => {
+    const isSel = i === selIdx;
+    pl.setStyle({weight: isSel ? 7 : 4, opacity: isSel ? 0.95 : 0.45});
+    if (isSel) pl.bringToFront();
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   NAVIGATION VIEW — turn-by-turn simulated
+   ═══════════════════════════════════════════════════════ */
+let navState = null;  // {coords, totalDist, elapsed, totalTime, idx, timer, muted, steps}
+
+function startNavigation() {
+  if (!J.selectedRoute || !_paths) return;
+  const v = J.selectedRoute;
+  const path = _paths[v.pathIdx] || _paths[0];
+  if (!path) return;
+
+  // Fly map to start, zoom in
+  map.flyTo([C.s.lat, C.s.lon], 16, {animate: true, duration: 1.2});
+
+  // Hide the left panel, show nav view
+  closePanel();
+  document.getElementById('navView').classList.add('show');
+
+  // Init state
+  navState = {
+    coords: path.coords.slice(),
+    steps: path.steps || [],
+    totalDist: v.distance_km,
+    elapsed: 0,
+    totalTime: v.time_mins * 60, // seconds
+    idx: 0,
+    timer: null,
+    muted: false,
+    variant: v,
+    nextStepIdx: 0,
+  };
+
+  // Start vehicle marker animation
+  if (navState.vehMarker) map.removeLayer(navState.vehMarker);
+  navState.vehMarker = L.marker(navState.coords[0], {
+    icon: L.divIcon({
+      html: `<div style="width:28px;height:28px;background:${v.color};border:3px solid #fff;border-radius:50%;box-shadow:0 0 16px ${v.color},0 4px 12px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:11px">${v.idx+1}</div>`,
+      className:'', iconAnchor:[14,14],
+    })
+  }).addTo(map);
+
+  // Dim non-selected routes on map
+  rL.forEach((pl, i) => {
+    pl.setStyle(i === v.pathIdx
+      ? {weight:7, opacity:0.95}
+      : {weight:2, opacity:0.2});
+    if (i === v.pathIdx) pl.bringToFront();
+  });
+
+  // Kick off simulation
+  updateNavUI();
+  navState.timer = setInterval(navTick, 400);  // update every 400ms
+  speak(`Starting navigation to ${C.e.name}.`);
+}
+
+function navTick() {
+  if (!navState) return;
+  // Advance elapsed time; simulate faster than real-time (1s sim = ~8s real time)
+  const step = 3.2;  // sim seconds per tick
+  navState.elapsed += step;
+
+  // Interpolate position along coords by fraction of total time
+  const frac = Math.min(1, navState.elapsed / navState.totalTime);
+  const pos = interpolateAlongPath(navState.coords, frac);
+  if (pos && navState.vehMarker) navState.vehMarker.setLatLng(pos);
+
+  // Gently pan map
+  if (pos) map.panTo(pos, {animate:true, duration:0.3, noMoveStart:true});
+
+  // Check for next turn announcement
+  checkNextStep(pos, frac);
+
+  updateNavUI();
+
+  // Arrived?
+  if (frac >= 1) {
+    clearInterval(navState.timer);
+    navState.timer = null;
+    speak(`You have arrived at ${C.e.name}.`);
+    setTimeout(() => arrivedAtDestination(), 800);
+  }
+}
+
+function interpolateAlongPath(coords, frac) {
+  if (!coords || coords.length < 2) return coords ? coords[0] : null;
+  // Compute cumulative distances
+  const segs = [];
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const d = haversine(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
+    segs.push({from: coords[i-1], to: coords[i], d});
+    total += d;
+  }
+  const target = frac * total;
+  let cum = 0;
+  for (const s of segs) {
+    if (cum + s.d >= target) {
+      const f = s.d === 0 ? 0 : (target - cum) / s.d;
+      return [s.from[0] + (s.to[0]-s.from[0])*f, s.from[1] + (s.to[1]-s.from[1])*f];
+    }
+    cum += s.d;
+  }
+  return coords[coords.length-1];
+}
+
+function checkNextStep(pos, frac) {
+  if (!pos || !navState.steps || navState.steps.length === 0) return;
+  // Find the step whose maneuver location is closest ahead
+  const nextIdx = Math.min(navState.steps.length - 1,
+    Math.floor(frac * navState.steps.length) + 1);
+  if (nextIdx !== navState.nextStepIdx) {
+    navState.nextStepIdx = nextIdx;
+    const st = navState.steps[nextIdx];
+    if (st && st.maneuver) {
+      const instr = humanizeStep(st);
+      if (instr) speak(instr);
+    }
+  }
+}
+
+function humanizeStep(st) {
+  if (!st || !st.maneuver) return null;
+  const type = st.maneuver.type;
+  const mod  = st.maneuver.modifier || '';
+  const name = st.name || '';
+
+  let action = 'Continue';
+  if (type === 'turn') action = `Turn ${mod}`;
+  else if (type === 'new name') action = 'Continue';
+  else if (type === 'depart') action = 'Head out';
+  else if (type === 'arrive') action = 'Arrive at destination';
+  else if (type === 'merge') action = `Merge ${mod}`;
+  else if (type === 'on ramp') action = `Take the ramp ${mod}`;
+  else if (type === 'off ramp') action = `Take the exit ${mod}`;
+  else if (type === 'fork') action = `Keep ${mod}`;
+  else if (type === 'end of road') action = `At the end, turn ${mod}`;
+  else if (type === 'roundabout') action = `Take the roundabout`;
+  else action = `Continue ${mod}`;
+
+  return name ? `${action} onto ${name}` : action;
+}
+
+function updateNavUI() {
+  if (!navState) return;
+  const v = navState.variant;
+  const remainingFrac = 1 - Math.min(1, navState.elapsed / navState.totalTime);
+  const remainingKm = +(v.distance_km * remainingFrac).toFixed(2);
+  const remainingSec = Math.max(0, Math.round(navState.totalTime - navState.elapsed));
+  const speed = v.distance_km > 0 && navState.totalTime > 0
+    ? Math.round((v.distance_km / navState.totalTime) * 3600) : 0;
+
+  const now = new Date();
+  const etaMs = now.getTime() + remainingSec * 1000;
+  const etaD = new Date(etaMs);
+  const etaStr = `${String(etaD.getHours()).padStart(2,'0')}:${String(etaD.getMinutes()).padStart(2,'0')}`;
+
+  // Next turn distance (approx)
+  let nextDist = 0, nextInstr = 'Continue straight';
+  if (navState.steps && navState.steps.length > 0) {
+    const nextIdx = Math.min(navState.steps.length - 1, navState.nextStepIdx);
+    const st = navState.steps[nextIdx];
+    if (st) {
+      nextDist = st.distance ? Math.round(st.distance * remainingFrac) : 0;
+      const instr = humanizeStep(st);
+      if (instr) nextInstr = instr;
+    }
+  } else {
+    nextDist = Math.round(remainingKm * 1000);
+    nextInstr = `Head to ${C.e.name}`;
+  }
+
+  // Update DOM
+  const distEl = document.getElementById('navNextDist');
+  if (distEl) {
+    distEl.innerHTML = nextDist >= 1000
+      ? `${(nextDist/1000).toFixed(1)}<span> km</span>`
+      : `${nextDist}<span> m</span>`;
+  }
+  document.getElementById('navInstr').textContent = nextInstr;
+  document.getElementById('navEta').innerHTML = `${etaStr}<span></span>`;
+  document.getElementById('navRemain').innerHTML = `${remainingKm}<span> km</span>`;
+  document.getElementById('navSpeed').innerHTML = `${speed}<span> km/h</span>`;
+  document.getElementById('navProg').style.width = `${Math.round((1-remainingFrac)*100)}%`;
+
+  // Direction icon
+  updateDirIcon(navState.steps[navState.nextStepIdx]);
+}
+
+function updateDirIcon(step) {
+  const el = document.getElementById('navDirIcon');
+  if (!el) return;
+  let svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+  if (step && step.maneuver) {
+    const mod = step.maneuver.modifier || '';
+    if (mod.includes('left')) {
+      svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>`;
+    } else if (mod.includes('right')) {
+      svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>`;
+    }
+  }
+  el.innerHTML = svg;
+}
+
+function speak(msg) {
+  if (!navState || navState.muted) return;
+  if (!('speechSynthesis' in window)) return;
+  try {
+    const u = new SpeechSynthesisUtterance(msg);
+    u.rate = 1.05; u.volume = 0.8;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  } catch(e) {}
+}
+
+function toggleMute() {
+  if (!navState) return;
+  navState.muted = !navState.muted;
+  const btn = document.getElementById('navMuteBtn');
+  if (navState.muted) {
+    btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`;
+    btn.style.color = 'var(--red)';
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  } else {
+    btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+    btn.style.color = '';
+  }
+}
+
+function endNav() {
+  if (!navState) return;
+  if (navState.timer) clearInterval(navState.timer);
+  if (navState.vehMarker) map.removeLayer(navState.vehMarker);
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  const completed = navState.elapsed >= navState.totalTime * 0.9;
+  navState = null;
+  document.getElementById('navView').classList.remove('show');
+
+  if (completed) {
+    saveCurrentTrip(() => {
+      showToast('Trip saved! +eco points 🌿');
+      navTo('impact');
+    });
+  } else {
+    openPanel();
+    if (window._lastAnalysis && window._variants) {
+      renderRouteOptions(window._lastAnalysis, window._variants, _paths);
+    }
+  }
+}
+
+function arrivedAtDestination() {
+  showToast('🎉 You have arrived!');
+  setTimeout(() => endNav(), 1500);
+}
+
+async function saveCurrentTrip(cb) {
+  if (!J.selectedRoute || !USER) { if (cb) cb(); return; }
+  const v = J.selectedRoute;
+  try {
+    await fetch(`${API}/api/v1/save-trip`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        user_id: USER.id, mode_chosen: v.mode,
+        route_name: `${C.s.name} → ${C.e.name}`,
+        time_mins: v.time_mins, cost_rm: v.cost_rm,
+        carbon_kg: v.carbon_kg, distance_km: v.distance_km,
+        start_lat: C.s.lat, start_lon: C.s.lon,
+        end_lat: C.e.lat, end_lon: C.e.lon,
+        carbon_saved_vs_driving: v.carbon_saved_vs_driving || 0,
+      })
+    });
+  } catch(e) { console.error('Save trip failed:', e); }
+  if (cb) cb();
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SIDE PANELS — Impact, Leaderboard, Chat, Profile
+   ═══════════════════════════════════════════════════════ */
+async function loadImpact() {
+  if (!USER) return;
+  const body = document.getElementById('impactBody');
+  body.innerHTML = `<div class="loading-state"><div class="loading-spinner"></div><div class="loading-txt">Loading impact data…</div></div>`;
+  try {
+    const [impR, comR] = await Promise.all([
+      fetch(`${API}/api/v1/impact/${USER.id}`),
+      fetch(`${API}/api/v1/community-impact`),
+    ]);
+    const imp = await impR.json();
+    const com = await comR.json();
+    const s = imp.stats;
+
+    if (!s || s.total_trips === 0) {
+      body.innerHTML = `
+        <div class="empty-state">
+          <div class="es-ico">${iconSized('leaf',48)}</div>
+          <div class="es-title">No trips yet</div>
+          <div class="es-sub">Complete your first EcoFlow journey to start tracking your impact!</div>
+        </div>`;
+      return;
+    }
+
+    const badges = imp.badges || [];
+    body.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-bg);color:var(--accent)">${ICONS.leaf}</div>
+          <div class="stat-val">${s.total_carbon_saved.toFixed(2)}</div>
+          <div class="stat-label">kg CO₂ Saved</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--orange-bg);color:var(--orange)">${ICONS.tree}</div>
+          <div class="stat-val">${s.trees_equivalent.toFixed(2)}</div>
+          <div class="stat-label">Trees Equivalent</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--blue-bg);color:var(--blue)">${ICONS.pin}</div>
+          <div class="stat-val">${s.total_trips}</div>
+          <div class="stat-label">Total Trips</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--purple-bg);color:var(--purple)">${ICONS.sparkle}</div>
+          <div class="stat-val">${s.total_distance_km.toFixed(1)}</div>
+          <div class="stat-label">km Travelled</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--cyan-bg);color:var(--cyan)">${ICONS.car}</div>
+          <div class="stat-val">${s.total_carbon_kg.toFixed(2)}</div>
+          <div class="stat-label">Total CO₂ (kg)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-bg);color:var(--accent)">${ICONS.money}</div>
+          <div class="stat-val">RM${s.total_cost_saved_rm.toFixed(2)}</div>
+          <div class="stat-label">Money Saved</div>
+        </div>
+      </div>
+      ${s.total_distance_km > 0 ? `
+      <div class="stat-card wide" style="margin-bottom:14px">
+        <div class="stat-label" style="margin-bottom:6px">Average CO₂ per km</div>
+        <div class="stat-val" style="font-size:24px">${(s.total_carbon_kg / s.total_distance_km).toFixed(3)} <span style="font-size:12px;color:var(--text3);font-family:var(--font)">kg/km</span></div>
+      </div>` : ''}
+      ${badges.length > 0 ? `
+      <div class="slabel">Badges Earned</div>
+      <div class="badge-row">${badges.map(b => `<div class="badge">${b}</div>`).join('')}</div>` : ''}
+      <div class="slabel">Community Impact</div>
+      <div class="stat-card wide" style="background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(59,130,246,.06));border:1px solid var(--accent-border)">
+        <div style="font-size:12px;color:var(--text2);line-height:1.7">
+          ${com.stats ? `All EcoFlow users have saved <b style="color:var(--accent)">${com.stats.total_carbon_saved_kg?.toFixed(1) || 0} kg CO₂</b> across
+          <b style="color:var(--blue)">${com.stats.total_trips || 0}</b> trips —
+          equal to <b style="color:var(--orange)">${com.stats.trees_equivalent?.toFixed(1) || 0}</b> trees!` : (com.message || 'No community data yet.')}
+        </div>
+      </div>`;
+  } catch(e) {
+    body.innerHTML = `<div class="empty-state"><div class="es-ico"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--orange)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="es-title">Could not load data</div><div class="es-sub">Make sure the backend is running.</div></div>`;
+  }
+}
+
+async function loadLeaderboard() {
+  const body = document.getElementById('lbBody');
+  body.innerHTML = `<div class="loading-state"><div class="loading-spinner"></div><div class="loading-txt">Loading leaderboard…</div></div>`;
+  try {
+    const r = await fetch(`${API}/api/v1/leaderboard?limit=10`);
+    const d = await r.json();
+    if (!d.leaderboard || d.leaderboard.length === 0) {
+      body.innerHTML = `<div class="empty-state"><div class="es-ico">${iconSized('sparkle',48)}</div><div class="es-title">No leaders yet</div><div class="es-sub">Be the first eco-champion! Complete a trip to get on the board.</div></div>`;
+      return;
+    }
+    const meId = USER?.id;
+    body.innerHTML = d.leaderboard.map((u, i) => {
+      const rc = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
+      const isMe = u.user_id === meId;
+      const display = isMe ? 'You' : shortName(u.user_id);
+      return `<div class="lb-row ${isMe?'me':''}">
+        <div class="lb-rank ${rc}">${u.rank}</div>
+        <div class="lb-info">
+          <div class="lb-name">${display}</div>
+          <div class="lb-stat">${u.total_trips} trips · ${u.trees_eq} trees saved</div>
+        </div>
+        <div class="lb-val">${u.carbon_saved_kg} kg</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    body.innerHTML = `<div class="empty-state"><div class="es-title">Could not load</div><div class="es-sub">Backend offline.</div></div>`;
+  }
+}
+
+function shortName(id) {
+  if (!id) return 'User';
+  // Human-friendly label from user_id
+  const parts = id.split('_');
+  return parts.length >= 2 ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1, 8) : id.slice(0, 12);
+}
+
+async function sendChat() {
+  if (!USER) return;
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  const msgs = document.getElementById('chatMsgs');
+  msgs.innerHTML += `<div class="chat-msg user">${escHtml(msg)}</div>`;
+  msgs.innerHTML += `<div class="chat-msg ai" id="chatTyping" style="opacity:.5">Thinking…</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const r = await fetch(`${API}/api/v1/ai-chat`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({user_id: USER.id, message: msg}),
+    });
+    const d = await r.json();
+    const typing = document.getElementById('chatTyping');
+    if (typing) typing.outerHTML = `<div class="chat-msg ai">${escHtml(d.reply || 'No reply')}</div>`;
+  } catch(e) {
+    const typing = document.getElementById('chatTyping');
+    if (typing) typing.outerHTML = `<div class="chat-msg ai">Sorry, I couldn't reach the server. Please make sure the backend is running.</div>`;
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ═══ PROFILE ═══ */
+async function loadProfile() {
+  if (!USER) return;
+  const body = document.getElementById('profileBody');
+
+  // Build the profile form with account info at top
+  const initial = (USER.name || USER.email || 'U').trim().charAt(0).toUpperCase();
+  body.innerHTML = `
+    <div class="profile-hero">
+      <div class="profile-avatar">${initial}</div>
+      <div style="flex:1;min-width:0">
+        <div class="profile-name">${escHtml(USER.name || 'User')}</div>
+        <div class="profile-email">${escHtml(USER.email || '')}${USER.guest?' · guest':''}</div>
+      </div>
+    </div>
+    <div class="slabel">Commute Preferences</div>
+    <div class="form-group">
+      <label class="form-label">Prefer Fast</label>
+      <div class="slider-row">
+        <input type="range" min="0" max="100" value="33" id="prefFast" oninput="document.getElementById('vFast').textContent=this.value+'%'"/>
+        <span class="slider-val" id="vFast">33%</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Prefer Cheap</label>
+      <div class="slider-row">
+        <input type="range" min="0" max="100" value="33" id="prefCheap" oninput="document.getElementById('vCheap').textContent=this.value+'%'"/>
+        <span class="slider-val" id="vCheap">33%</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Prefer Green</label>
+      <div class="slider-row">
+        <input type="range" min="0" max="100" value="34" id="prefGreen" oninput="document.getElementById('vGreen').textContent=this.value+'%'"/>
+        <span class="slider-val" id="vGreen">34%</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Vehicle Type</label>
+      <select class="form-input" id="prefVehicle" style="cursor:pointer">
+        <option value="car">Car</option>
+        <option value="motorcycle">Motorcycle</option>
+        <option value="none">No Vehicle</option>
+      </select>
+    </div>
+    <button class="btn-nav" onclick="saveProfile()" style="margin-top:4px">Save Preferences</button>
+    <div id="profileMsg" style="margin-top:10px;font-size:12px;color:var(--accent);text-align:center;min-height:16px"></div>
+    <button class="profile-logout" onclick="logout()">Log out</button>
+  `;
+
+  // Load existing preferences
+  try {
+    const r = await fetch(`${API}/api/v1/user-profile/${USER.id}`);
+    const d = await r.json();
+    if (d.profile) {
+      const f = Math.round((d.profile.prefer_fast || 0.33) * 100);
+      const ch = Math.round((d.profile.prefer_cheap || 0.33) * 100);
+      const gr = Math.round((d.profile.prefer_green || 0.34) * 100);
+      document.getElementById('prefFast').value = f;
+      document.getElementById('vFast').textContent = f + '%';
+      document.getElementById('prefCheap').value = ch;
+      document.getElementById('vCheap').textContent = ch + '%';
+      document.getElementById('prefGreen').value = gr;
+      document.getElementById('vGreen').textContent = gr + '%';
+      if (d.profile.vehicle_type) document.getElementById('prefVehicle').value = d.profile.vehicle_type;
+    }
+  } catch(e) { /* use defaults */ }
+}
+
+async function saveProfile() {
+  if (!USER) return;
+  const fast = +document.getElementById('prefFast').value / 100;
+  const cheap = +document.getElementById('prefCheap').value / 100;
+  const green = +document.getElementById('prefGreen').value / 100;
+  const vehicle = document.getElementById('prefVehicle').value;
+  const msgEl = document.getElementById('profileMsg');
+  try {
+    await fetch(`${API}/api/v1/user-profile`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        user_id: USER.id, prefer_fast: fast, prefer_cheap: cheap,
+        prefer_green: green, vehicle_type: vehicle,
+      }),
+    });
+    msgEl.style.color = 'var(--accent)';
+    msgEl.textContent = '✓ Preferences saved';
+    setTimeout(() => msgEl.textContent = '', 2500);
+  } catch(e) {
+    msgEl.style.color = 'var(--red)';
+    msgEl.textContent = 'Failed to save. Is the backend running?';
+  }
+}
+
+/* ═══ CARPOOL QUICK FAB ═══ */
+function quickCP() {
+  if (C.s && C.e) {
+    J.mode = 'Carpool';
+    openPanel();
+    step('cp-ask');
+  } else {
+    openPanel();
+    document.getElementById('panelContent').innerHTML = `
+      <div class="ph-hd">
+        <div style="flex:1">
+          <div class="ph-title">Quick Carpool</div>
+          <div class="ph-sub">Find or offer a ride</div>
+        </div>
+        <button class="ph-close" onclick="closePanel()">✕</button>
+      </div>
+      <div class="empty-state">
+        <div class="es-ico" style="color:var(--purple)">${iconSized('carpool',48)}</div>
+        <div class="es-title">Pick your route first</div>
+        <div class="es-sub">Enter start &amp; destination above,<br>then we'll match you with carpool partners.</div>
+      </div>`;
+    document.getElementById('panelFooterBar').innerHTML = '';
+  }
+}
+
+/* ═══ POI CLICK ON MAP ═══ */
+let poiPopup = null;
+map.on("click", async function(e) {
+  // Don't trigger during navigation
+  if (navState) return;
+  const {lat, lng} = e.latlng;
+  if (poiPopup) map.closePopup(poiPopup);
+
+  poiPopup = L.popup({className:"poi-popup", maxWidth:260, closeButton:true})
+    .setLatLng(e.latlng)
+    .setContent(`<div class="pp-loading">Looking up location…</div>`)
+    .openOn(map);
+
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`, {headers:{"User-Agent":"EcoFlow/4.0"}});
+    const d = await r.json();
+    const name = d.name || d.address?.road || d.address?.suburb || "This location";
+    const addr = [d.address?.road, d.address?.suburb, d.address?.city].filter(Boolean).join(", ");
+    const safeN = name.replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+    const safeLat = lat.toFixed(6), safeLng = lng.toFixed(6);
+    poiPopup.setContent(`
+      <div class="pp-wrap">
+        <div class="pp-name">${escHtml(name)}</div>
+        <div class="pp-addr">${escHtml(addr || 'Map location')}</div>
+        <div class="pp-btns">
+          <button class="pp-btn pp-s" onclick="setPOI(${safeLat},${safeLng},'${safeN}','start')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+            Set Start
+          </button>
+          <button class="pp-btn pp-e" onclick="setPOI(${safeLat},${safeLng},'${safeN}','end')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            Set Destination
+          </button>
+        </div>
+      </div>`);
+  } catch(err) {
+    const safeLat = lat.toFixed(6), safeLng = lng.toFixed(6);
+    poiPopup.setContent(`
+      <div class="pp-wrap">
+        <div class="pp-name">Selected Location</div>
+        <div class="pp-btns">
+          <button class="pp-btn pp-s" onclick="setPOI(${safeLat},${safeLng},'Selected location','start')">Set Start</button>
+          <button class="pp-btn pp-e" onclick="setPOI(${safeLat},${safeLng},'Selected location','end')">Set Destination</button>
+        </div>
+      </div>`);
+  }
+});
+
+function setPOI(lat, lng, name, role) {
+  map.closePopup(poiPopup);
+  const place = {name, lat: parseFloat(lat), lon: parseFloat(lng)};
+  if (role === "start") {
+    C.s = place;
+    document.getElementById("iStart").value = name;
+    document.getElementById("clrS").classList.add("vis");
+  } else {
+    C.e = place;
+    document.getElementById("iEnd").value = name;
+    document.getElementById("clrE").classList.add("vis");
+  }
+  if (C.s && C.e) { openPanel(); step('mode'); }
+  else {
+    const other = role === "start" ? "iEnd" : "iStart";
+    document.getElementById(other).focus();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════ */
+(function init(){
+  loadUser();
+  updateAvatarUI();
+  if (!USER) {
+    showAuth();
+  } else {
+    hideAuth();
+  }
+
+  // Auto-locate on load (best-effort, no permission prompt loop)
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      meP = [pos.coords.latitude, pos.coords.longitude];
+      plMe();
+    }, () => {}, {timeout: 3000, maximumAge: 300000});
+  }
+
+  // Sync the profile endpoint on login so per-user records exist
+  if (USER && !USER.guest) {
+    fetch(`${API}/api/v1/user-profile/${USER.id}`).catch(() => {});
+  }
+})();
+
+</script>
+</body>
+</html>

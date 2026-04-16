@@ -1,0 +1,16 @@
+# EcoFlow AI — Python dependencies
+# Install: pip install -r requirements.txt
+
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.0
+
+# Firebase
+firebase-admin==6.5.0
+
+# Google Gemini AI  ← IMPORTANT: use THIS package (not google-genai)
+google-generativeai==0.7.2
+
+# HTTP + utils
+requests==2.32.3
+python-dotenv==1.0.1
