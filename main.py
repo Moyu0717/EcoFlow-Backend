@@ -13,7 +13,7 @@ from typing import Optional, List
 
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -77,8 +77,92 @@ else:
 app = FastAPI(
     title="EcoFlow AI",
     description="Smart urban commute decisions — green, cheap, fast 🌿",
-    version="2.0.0",
+    version="2.0.0"
 )
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(content="", media_type="image/x-icon")
+
+@app.get("/")
+async def read_index():
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+    return {"status": "Backend is running, but index.html missing"}
+
+@app.middleware("http")
+async def validate_user_header(request, call_next):
+    # Skip security check for health status or index page
+    if request.url.path in ["/", "/health", "/favicon.ico"]:
+        return await call_next(request)
+    
+    # Check if 'X-User-ID' exists in the request headers
+    # In a real production app, you would verify the Firebase JWT token here
+    user_id = request.headers.get("X-User-ID")
+    if not user_id and request.method == "POST":
+        log.warning(f"🚫 Unauthenticated access attempt to {request.url.path}")
+        # For now, we log it, but in production, you'd raise HTTPException(401)
+        
+    return await call_next(request)
+# --- User Profile Data Model ---
+class UserProfile(BaseModel):
+    user_id: str
+    email: Optional[str] = None
+    name: Optional[str] = None
+    # 偏好设置：默认各占 1/3
+    prefer_fast: float = 0.33
+    prefer_cheap: float = 0.33
+    prefer_green: float = 0.34
+    vehicle_type: str = "car"
+    # 可选：保存工作地点以优化路线建议
+    work_lat: Optional[float] = None
+    work_lon: Optional[float] = None
+
+@app.post("/api/v1/auth/sync")
+async def sync_user(profile: UserProfile):
+    """
+    Synchronizes Firebase User UID with Firestore document.
+    Ensures each user has a private record in the 'users' collection.
+    """
+    try:
+        user_ref = db.collection("users").document(profile.user_id)
+        doc = user_ref.get()
+
+        if not doc.exists:
+            user_data = profile.model_dump() 
+            user_data["created_at"] = datetime.now()
+            user_data["last_login"] = datetime.now()
+            user_ref.set(user_data)
+            log.info(f"✨ New user created: {profile.user_id}")
+            return {"status": "created", "user_id": profile.user_id}
+        else:
+
+            user_ref.update({
+                "last_login": datetime.now()
+            })
+            log.info(f"🔑 User synced: {profile.user_id}")
+            return {"status": "synced", "user_id": profile.user_id}
+            
+    except Exception as e:
+        log.error(f"❌ Sync failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal Server Error during sync")
+    
+@app.post("/api/v1/user-profile")
+async def save_user_profile(profile: UserProfile):
+    """
+    Updates sliders/preferences for a specific user
+    """
+    try:
+        user_ref = db.collection("users").document(profile.user_id)
+        user_ref.update({
+            "prefer_fast": profile.prefer_fast,
+            "prefer_cheap": profile.prefer_cheap,
+            "prefer_green": profile.prefer_green,
+            "vehicle_type": profile.vehicle_type
+        })
+        return {"message": "Success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 app.add_middleware(
     CORSMiddleware,
@@ -248,29 +332,36 @@ def call_gemini(prompt: str, fallback: str = "") -> str:
 
 
 def smart_fallback(mode: str, context: str = "") -> str:
-    """Rule-based fallback when Gemini is unavailable."""
+    """Professional rule-based fallback when Gemini is unavailable."""
     m = mode.lower()
-    if "walk" in m:        return "🚶 Zero emissions, zero cost — perfect for short trips and great for your health!"
-    if "cycl" in m:        return "🚴 Cycling saves money, burns calories, and produces zero carbon. Awesome choice!"
-    if "mrt" in m or "lrt" in m: return "🚇 Rail transit is fast, reliable, and bypasses traffic entirely. Smart move!"
-    if "bus" in m:         return "🚌 Public bus is the most affordable option — great for your wallet and the environment."
-    if "carpool" in m:     return "🤝 Carpooling cuts your cost and carbon in half. Even one extra passenger makes a big difference!"
-    if "park" in m:        return "🅿️ Park & Ride avoids city parking fees and congestion — a smart hybrid approach."
-    if "grab" in m:        return "📱 Convenient and stress-free! Use promo codes to save on fare."
-    if "motor" in m:       return "🏍️ Quick and economical for short distances. Stay safe on the road!"
-    return "🌿 Every eco-friendly trip counts towards Malaysia's Net Zero 2050 goal. Keep it up!"
+    if "walk" in m:        return "Zero emissions, zero cost — perfect for short trips and optimal for health."
+    if "cycl" in m:        return "Cycling minimizes costs and produces zero carbon emissions."
+    if "mrt" in m or "lrt" in m: return "Rail transit offers high reliability and bypasses road congestion entirely."
+    if "bus" in m:         return "Public bus networks provide the most cost-effective urban mobility."
+    if "carpool" in m:     return "Carpooling significantly reduces per-capita carbon footprint and travel expenses."
+    if "park" in m:        return "Park & Ride is a strategic hybrid approach to avoid city center parking fees."
+    if "grab" in m:        return "E-hailing offers point-to-point convenience without parking friction."
+    if "motor" in m:       return "Motorcycles provide the highest time-efficiency during peak congestion."
+    
+    return "Every eco-friendly transit choice contributes to Malaysia's Net Zero 2050 targets."
 
 
 def calc_badges(stats: dict) -> List[str]:
-    badges, trips, saved = [], stats.get("total_trips", 0), stats.get("total_carbon_saved", 0)
-    if trips >= 1:    badges.append("🌱 First Trip")
-    if trips >= 10:   badges.append("🔟 10 Trips")
-    if trips >= 50:   badges.append("⭐ 50 Trips")
-    if trips >= 100:  badges.append("💯 Century Commuter")
-    if saved >= 1:    badges.append("🌿 1 kg CO₂ Saved")
-    if saved >= 10:   badges.append("🌳 10 kg CO₂ Saved")
-    if saved >= 50:   badges.append("🏆 EcoChampion")
-    if saved >= 100:  badges.append("🥇 EcoHero")
+    """Clean, professional badges without emojis."""
+    badges = []
+    trips = stats.get("total_trips", 0)
+    saved = stats.get("total_carbon_saved", 0)
+    
+    if trips >= 1:    badges.append("First Trip")
+    if trips >= 10:   badges.append("10 Trips Club")
+    if trips >= 50:   badges.append("50 Trips Milestone")
+    if trips >= 100:  badges.append("Century Commuter")
+    
+    if saved >= 1:    badges.append("1 kg CO2 Saved")
+    if saved >= 10:   badges.append("10 kg CO2 Saved")
+    if saved >= 50:   badges.append("EcoChampion")
+    if saved >= 100:  badges.append("EcoHero")
+    
     return badges
 
 # ============================================================

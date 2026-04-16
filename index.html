@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════════
@@ -36,6 +38,15 @@
 }
 html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--bg);color:var(--text)}
 #map{position:fixed;inset:0;z-index:0}
+
+/* slightly dim FAB/panel backgrounds so they're easier to see against brighter night tiles */
+body.map-night #searchWrap .search-card,
+body.map-night #leftPanel,
+body.map-night .side-panel,
+body.map-night #navRail,
+body.map-night .fab:not(.primary) {
+  background:rgba(14,19,27,.94);
+}
 
 /* ═══ SVG ICON ═══ */
 .ico{width:20px;height:20px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;flex-shrink:0}
@@ -202,6 +213,34 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 }
 .swap-btn:hover{background:var(--card2);color:var(--accent);border-color:var(--accent-border)}
 .swap-btn svg{width:14px;height:14px}
+
+/* ═══ SEARCH AUTOCOMPLETE DROPDOWN ═══ */
+#searchDropdown{
+  margin-top:6px;background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;overflow:hidden;box-shadow:var(--shadow-lg);
+  max-height:360px;overflow-y:auto;backdrop-filter:blur(20px);
+}
+#searchDropdown::-webkit-scrollbar{width:4px}
+#searchDropdown::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.sd-item{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  cursor:pointer;transition:background .12s;border-bottom:1px solid var(--border);
+}
+.sd-item:last-child{border-bottom:none}
+.sd-item:hover,.sd-item.active{background:var(--card)}
+.sd-ico{
+  width:32px;height:32px;border-radius:8px;background:var(--card2);
+  display:flex;align-items:center;justify-content:center;color:var(--text3);flex-shrink:0;
+}
+.sd-ico.curloc{background:var(--accent-bg);color:var(--accent)}
+.sd-info{flex:1;min-width:0}
+.sd-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sd-addr{font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sd-hint{padding:12px 14px;font-size:12px;color:var(--text3);text-align:center}
+.sd-hdr{
+  padding:8px 14px;font-size:10px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.8px;background:var(--bg);border-bottom:1px solid var(--border);
+}
 
 /* ═══════════════════════════════════════════════════════
    LEFT CONTENT PANEL (replaces bottom sheet)
@@ -372,6 +411,39 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 }
 .spill.green{background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border)}
 .spill.blue{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+
+/* Best/Recommended card — slightly elevated look */
+.rcard.best{
+  background:linear-gradient(180deg,var(--card2),var(--card));
+  border-color:var(--accent);
+  box-shadow:0 0 0 1px var(--accent-border), 0 4px 16px rgba(34,197,94,.12);
+}
+.rcard.best .rctag{
+  background:linear-gradient(135deg,var(--accent),var(--lime));
+  color:#000;padding:4px 10px;font-weight:800;
+  box-shadow:0 2px 8px rgba(34,197,94,.3);
+}
+
+/* Cross-mode AI recommendation card (clickable, jumps to suggested mode) */
+.cross-mode-card{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 14px;border-radius:12px;
+  border:1.5px dashed var(--accent);
+  background:linear-gradient(135deg,rgba(34,197,94,.05),rgba(59,130,246,.05));
+  cursor:pointer;transition:var(--transition);
+}
+.cross-mode-card:hover{
+  border-style:solid;background:linear-gradient(135deg,rgba(34,197,94,.1),rgba(59,130,246,.08));
+  transform:translateY(-1px);box-shadow:var(--shadow-sm);
+}
+.cm-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.cm-ico{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cm-info{flex:1;min-width:0}
+.cm-ttl{font-size:13px;font-weight:700;color:var(--text);line-height:1.2}
+.cm-sub{font-size:11px;color:var(--text3);margin-top:2px;font-family:var(--mono)}
+.cm-right{text-align:right;flex-shrink:0}
+.cm-eco{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent)}
+.cm-cta{font-size:10px;color:var(--text3);font-weight:600;margin-top:2px}
 
 /* ═══ PRIMARY BUTTON (sticky at bottom of panel) ═══ */
 .panel-footer{
@@ -602,6 +674,8 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 }
 .profile-logout:hover{background:var(--red-bg)}
 
+
+
 /* ═══ MAP OVERRIDES ═══ */
 .leaflet-control-zoom{margin:14px 14px 0 0!important}
 .leaflet-top.leaflet-right{top:calc(50% - 60px)}
@@ -710,6 +784,16 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
     <button class="auth-submit" id="aSubmit" onclick="authSubmit()">Log in</button>
     <div class="auth-err" id="aErr"></div>
 
+    <button class="auth-guest" style="margin-top:10px; display:flex; align-items:center; justify-content:center; gap:10px; background:#fff; color:#3c4043; border:1px solid #dadce0; font-weight:600;" onclick="authGoogle()">
+      <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+    Continue with Google
+  </button>
+
     <button class="auth-guest" onclick="authGuest()">Continue as guest</button>
 
     <div class="auth-footer" id="aFooter">
@@ -749,9 +833,14 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
     <div class="search-row">
       <div class="sdot sdot-s"></div>
       <div class="sep-line"></div>
-      <input class="sinput" id="iStart" placeholder="Choose starting point" list="pl" autocomplete="off"
-        oninput="onInp('s',this.value)" onchange="onChg('s',this.value)"/>
-      <button class="sclear" id="clrS" onclick="clrIn('s',event)">✕</button>
+      <input class="sinput" id="iStart" placeholder="Choose starting point" autocomplete="off"
+        oninput="onSearchInput('s',this.value)"
+        onfocus="onSearchFocus('s')"
+        onkeydown="onSearchKey('s',event)"/>
+      <button class="sclear" id="clrS" onclick="clrIn('s',event)" title="Clear">✕</button>
+      <button class="sclear" id="curS" onclick="useCurrentLoc('s',event)" style="display:flex" title="Use current location">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
       <div class="swap-btn" onclick="swapLoc()" title="Swap start/end">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
       </div>
@@ -759,29 +848,18 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
     <div class="search-row">
       <div class="sdot sdot-e"></div>
       <div class="sep-line"></div>
-      <input class="sinput" id="iEnd" placeholder="Where to?" list="pl" autocomplete="off"
-        oninput="onInp('e',this.value)" onchange="onChg('e',this.value)"/>
-      <button class="sclear" id="clrE" onclick="clrIn('e',event)">✕</button>
+      <input class="sinput" id="iEnd" placeholder="Where to?" autocomplete="off"
+        oninput="onSearchInput('e',this.value)"
+        onfocus="onSearchFocus('e')"
+        onkeydown="onSearchKey('e',event)"/>
+      <button class="sclear" id="clrE" onclick="clrIn('e',event)" title="Clear">✕</button>
+      <button class="sclear" id="curE" onclick="useCurrentLoc('e',event)" style="display:flex" title="Use current location">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
     </div>
   </div>
-  <datalist id="pl">
-    <option value="KL Sentral|3.1340|101.6862">
-    <option value="KLCC|3.1579|101.7119">
-    <option value="Bukit Bintang|3.1466|101.7099">
-    <option value="Chow Kit|3.1622|101.6983">
-    <option value="Petaling Jaya|3.1073|101.6067">
-    <option value="Subang Jaya|3.0456|101.5796">
-    <option value="Shah Alam|3.0733|101.5185">
-    <option value="Putrajaya|2.9264|101.6964">
-    <option value="Cyberjaya|2.9202|101.6534">
-    <option value="Kepong|3.2113|101.6365">
-    <option value="Ampang|3.1478|101.7615">
-    <option value="Banting|2.8190|101.5024">
-    <option value="Klang|3.0449|101.4455">
-    <option value="Mid Valley|3.1177|101.6772">
-    <option value="Sunway Pyramid|3.0731|101.6069">
-    <option value="Bangsar|3.1300|101.6700">
-  </datalist>
+  <!-- Autocomplete dropdown (appears below active input) -->
+  <div id="searchDropdown" style="display:none"></div>
 </div>
 
 <!-- ═══ LEFT CONTENT PANEL ═══ -->
@@ -834,39 +912,19 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
   </div>
 </div>
 
-<!-- ═══ CHAT SIDE PANEL ═══ -->
-<div class="side-panel" id="panelChat">
-  <div class="ph-hd">
-    <div style="flex:1">
-      <div class="ph-title">EcoFlow AI</div>
-      <div class="ph-sub">Your commute assistant</div>
-    </div>
-    <button class="ph-close" onclick="closeSidePanel()">✕</button>
-  </div>
-  <div class="chat-wrap">
-    <div class="chat-msgs" id="chatMsgs">
-      <div class="chat-msg ai">Hi! I'm your EcoFlow commute assistant. Ask me about routes, costs, carbon savings, or anything about commuting in KL/Selangor.</div>
-    </div>
-    <div class="chat-input-row">
-      <input class="chat-input" id="chatInput" placeholder="Ask about your commute…" onkeydown="if(event.key==='Enter')sendChat()"/>
-      <button class="chat-send" onclick="sendChat()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ PROFILE SIDE PANEL ═══ -->
 <div class="side-panel" id="panelProfile">
   <div class="ph-hd">
     <div style="flex:1">
-      <div class="ph-title">My Profile</div>
-      <div class="ph-sub">Preferences &amp; account</div>
+      <div class="ph-title">My Account</div>
+      <div class="ph-sub">Preferences & Settings</div>
     </div>
     <button class="ph-close" onclick="closeSidePanel()">✕</button>
   </div>
-  <div class="panel-scroll pb" id="profileBody"></div>
+  <div class="panel-scroll pb" id="profileBody">
+    <div class="loading-state"><div class="loading-spinner"></div><div class="loading-txt">Loading…</div></div>
+  </div>
 </div>
+
 
 <!-- ═══ NAVIGATION VIEW ═══ -->
 <div id="navView">
@@ -910,6 +968,20 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
    ECOFLOW ENGINE v4.0 — redesigned layout
    ═══════════════════════════════════════════════════════ */
 const API = "http://localhost:8000";
+// --- Firebase Configuration ---
+const firebaseConfig = {
+  apiKey: "AIzaSyAIbizu1Oe1Alkmsb5BvN-b1SZKGOSROLo",
+  authDomain: "ecoflow-c6ac1.firebaseapp.com",
+  projectId: "ecoflow-c6ac1",
+  storageBucket: "ecoflow-c6ac1.firebasestorage.app",
+  messagingSenderId: "196537430669",
+  appId: "1:196537430669:web:74c76c20f106db8377a8c4",
+  measurementId: "G-2GWYRMGMJQ"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 
 /* ─── USER / AUTH ─── */
 let USER = null;  // {id, email, name, guest}
@@ -964,64 +1036,140 @@ function showAuth(){
   document.getElementById('authOverlay').classList.add('show');
 }
 
-async function authSubmit(){
+async function authSubmit() {
   const isLogin = document.getElementById('tabLogin').classList.contains('active');
-  const email = document.getElementById('aEmail').value.trim().toLowerCase();
-  const pass  = document.getElementById('aPass').value;
-  const name  = document.getElementById('aName').value.trim();
-  const err = document.getElementById('aErr');
-  err.classList.remove('show');
+  const email = document.getElementById('aEmail').value.trim();
+  const pass = document.getElementById('aPass').value;
+  const name = document.getElementById('aName').value.trim();
+  const errEl = document.getElementById('aErr');
 
-  if (!email || !email.includes('@')) {
-    err.textContent = 'Please enter a valid email.'; err.classList.add('show'); return;
-  }
-  if (!pass || pass.length < 6) {
-    err.textContent = 'Password must be at least 6 characters.'; err.classList.add('show'); return;
-  }
-  if (!isLogin && !name) {
-    err.textContent = 'Please enter your name.'; err.classList.add('show'); return;
+  if (!email || !pass) {
+    errEl.textContent = "Please fill in all fields.";
+    errEl.classList.add('show');
+    return;
   }
 
-  // Local-only auth (stored in localStorage; the backend handles per-user_id records)
-  const users = JSON.parse(localStorage.getItem('ecoflow_users') || '{}');
+  try {
+    let userCredential;
+    
+    if (isLogin) {
+      // Real Authentication with Firebase
+      userCredential = await auth.signInWithEmailAndPassword(email, pass);
+    } else {
+      // Create new account
+      userCredential = await auth.createUserWithEmailAndPassword(email, pass);
+      if (name) {
+        await userCredential.user.updateProfile({ displayName: name });
+      }
+    }
 
-  if (isLogin) {
-    const u = users[email];
-    if (!u) { err.textContent = 'No account found. Sign up first.'; err.classList.add('show'); return; }
-    if (u.pass !== pass) { err.textContent = 'Incorrect password.'; err.classList.add('show'); return; }
-    saveUser({id:u.id, email:u.email, name:u.name, guest:false});
-  } else {
-    if (users[email]) { err.textContent = 'Account already exists. Log in instead.'; err.classList.add('show'); return; }
-    const id = 'user_' + Math.random().toString(36).slice(2,10);
-    users[email] = {id, email, name, pass};
-    localStorage.setItem('ecoflow_users', JSON.stringify(users));
-    saveUser({id, email, name, guest:false});
+    const firebaseUser = userCredential.user;
 
-    // Sync profile to backend (best-effort)
-    fetch(`${API}/api/v1/user-profile`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        user_id:id, prefer_fast:0.33, prefer_cheap:0.33, prefer_green:0.34, vehicle_type:'car'
-      })
-    }).catch(()=>{});
+    // --- CRITICAL: Sync Firebase UID with our Backend ---
+    const syncData = {
+      user_id: firebaseUser.uid,
+      email: firebaseUser.email,
+      name: firebaseUser.displayName || 'Eco Rider',
+      prefer_fast: 0.33,
+      prefer_cheap: 0.33,
+      prefer_green: 0.34,
+      vehicle_type: "car"
+    };
+
+    const response = await fetch(`${API}/api/v1/auth/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(syncData)
+    });
+
+    if (response.ok) {
+      const userData = {
+        id: firebaseUser.uid,
+        name: syncData.name,
+        email: firebaseUser.email,
+        guest: false
+      };
+      
+      saveUser(userData); // Save to local storage for UI state
+      hideAuth();
+      showToast(`Logged in as ${userData.name}`);
+    } else {
+      throw new Error("Backend server failed to sync profile.");
+    }
+
+  } catch (error) {
+    console.error("Auth Error:", error);
+    errEl.textContent = error.message;
+    errEl.classList.add('show');
   }
-  hideAuth();
-  showToast(isLogin ? `Welcome back, ${USER.name || USER.email}!` : `Welcome to EcoFlow!`);
 }
 
-function logout(){
-  localStorage.removeItem('ecoflow_user');
-  USER = null;
-  closeSidePanel();
-  showAuth();
+/* --- Google Authentication --- */
+async function authGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  const errEl = document.getElementById('aErr');
+  errEl.classList.remove('show');
+
+  try {
+    // 1. Pop up Google Login window
+    const result = await auth.signInWithPopup(provider);
+    const user = result.user;
+
+    // 2. Prepare Sync Payload
+    const syncData = {
+      user_id: user.uid,
+      email: user.email,
+      name: user.displayName || 'Google User',
+      prefer_fast: 0.33,
+      prefer_cheap: 0.33,
+      prefer_green: 0.34,
+      vehicle_type: "car"
+    };
+
+    // 3. Sync with your FastAPI backend
+    const response = await fetch(`${API}/api/v1/auth/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(syncData)
+    });
+
+    if (response.ok) {
+      saveUser({
+        id: user.uid,
+        name: syncData.name,
+        email: user.email,
+        guest: false
+      });
+      hideAuth();
+      showToast(`Welcome, ${syncData.name}`);
+    } else {
+      throw new Error("Backend sync failed");
+    }
+
+  } catch (error) {
+    console.error("Google Auth Error:", error);
+    // Ignore error if user simply closed the popup
+    if (error.code !== 'auth/popup-closed-by-user') {
+      errEl.textContent = error.message;
+      errEl.classList.add('show');
+    }
+  }
+}
+
+function logout() {
+  auth.signOut().then(() => {
+    localStorage.removeItem('ecoflow_user');
+    location.reload(); // Refresh to show login screen
+  });
 }
 
 /* ─── TOAST ─── */
-function showToast(msg){
+function showToast(msg) {
   const t = document.getElementById('toast');
+  // Use the existing SVG tick icon in your toast div instead of emojis
   document.getElementById('toastTxt').textContent = msg;
   t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2400);
+  setTimeout(() => t.classList.remove('show'), 2400);
 }
 
 /* ─── ICONS ─── */
@@ -1066,26 +1214,40 @@ function getIcon(mode) { return ICONS[MODE_ICON_MAP[mode] || 'car'] || ICONS.car
 function getIconBg(mode) { const c = MC[mode] || '#888'; return `background:${c}18;color:${c}`; }
 
 /* ─── MAP ─── */
-const MAPBOX_TOKEN = 'REACT_APP_MAPBOX_KEY';
+const MAPBOX_TOKEN = 'pk.eyJ1IjoiY2VsaW5lMTAxNiIsImEiOiJjbW8xZThrdjcwZm5jMnBzN3JyYnQwMmNrIn0.lj5RNNwiHdD6iSVikj_3jA';
 const map = L.map('map', {zoomControl: true, attributionControl: false}).setView([3.139, 101.687], 13);
+
+// 老老实实使用你验证过好用的底图链接（dark-v11 和 256 像素完美适配）
 const TILES = {
   day: `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
   night: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
 };
+
 let currentMode = null, tileLayer = null;
-function getMode() { const h = new Date().getHours(); return (h >= 6 && h < 19) ? 'day' : 'night'; }
+
+function getMode() { 
+  const h = new Date().getHours(); 
+  return (h >= 6 && h < 19) ? 'day' : 'night'; 
+}
+
 function applyMode(mode) {
   if (mode === currentMode) return;
   currentMode = mode;
+  
   if (tileLayer) map.removeLayer(tileLayer);
+  
   tileLayer = L.tileLayer(TILES[mode], {maxZoom: 19, tileSize: 256}).addTo(map);
+  
   const icon = document.getElementById('modeIcon');
-  if (mode === 'night') {
-    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-  } else {
-    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  if (icon) {
+    if (mode === 'night') {
+      icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    } else {
+      icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+    }
   }
 }
+
 applyMode(getMode());
 function toggleMode() { applyMode(currentMode === 'day' ? 'night' : 'day'); }
 setInterval(() => applyMode(getMode()), 60000);
@@ -1096,7 +1258,9 @@ const UT = [
   {c:'av-walk', icon:'walk'}, {c:'av-bus', icon:'bus'}, {c:'av-bike', icon:'cycle'},
 ];
 let sU = [], sO = true, sM = true, meM = null, meP = [3.139, 101.687];
+
 function rKL() { return [3.083 + Math.random() * .135, 101.623 + Math.random() * .112]; }
+
 function mIco(c, iconKey) {
   const svg = ICONS[iconKey] || ICONS.car;
   return L.divIcon({
@@ -1104,6 +1268,7 @@ function mIco(c, iconKey) {
     className: '', iconAnchor: [13, 13],
   });
 }
+
 function spawn(n = 14) {
   sU.forEach(u => map.removeLayer(u.m)); sU = [];
   if (!sO) return;
@@ -1114,6 +1279,7 @@ function spawn(n = 14) {
     sU.push({p, v: [(Math.random()-.5)*.00015, (Math.random()-.5)*.00015], m});
   }
 }
+
 function move() {
   sU.forEach(u => {
     u.p[0] += u.v[0] + (Math.random()-.5)*.00003;
@@ -1123,6 +1289,7 @@ function move() {
     u.m.setLatLng(u.p);
   });
 }
+
 function plMe() {
   if (meM) map.removeLayer(meM);
   if (!sM) return;
@@ -1133,6 +1300,7 @@ function plMe() {
     })
   }).addTo(map).bindPopup('<b style="color:#22C55E">You</b>');
 }
+
 spawn(14); plMe(); setInterval(move, 1400);
 
 map.on('zoomend', function() {
@@ -1154,28 +1322,273 @@ function locateMe() {
   }
 }
 
-/* ─── SEARCH INPUT ─── */
+/* ─── SEARCH INPUT — global autocomplete via Nominatim (free, no API key) ─── */
 let C = {s: null, e: null};
-function pp(v) { const a = v.split('|'); return a.length === 3 ? {name: a[0], lat: +a[1], lon: +a[2]} : null; }
-function onInp(k, v) { document.getElementById(k==='s'?'clrS':'clrE').classList.toggle('vis', v.length > 0); }
-function onChg(k, v) {
-  const p = pp(v);
-  if (p) {
-    if (k==='s') C.s = p; else C.e = p;
-    const inp = document.getElementById(k==='s'?'iStart':'iEnd');
-    inp.value = p.name;
-    if (C.s && C.e) { openPanel(); step('mode'); }
+let _activeSearch = null;       // 's' or 'e' — which input is currently focused
+let _searchTimer = null;        // debounce timer
+let _searchResults = [];        // current results list
+let _searchHiIdx = -1;          // keyboard highlighted index
+
+// Popular Malaysian cities to show as defaults / fallback
+const POPULAR_PLACES = [
+  {name:'KL Sentral',     lat:3.1340, lon:101.6862, addr:'Kuala Lumpur'},
+  {name:'KLCC',           lat:3.1579, lon:101.7119, addr:'Kuala Lumpur'},
+  {name:'Bukit Bintang',  lat:3.1466, lon:101.7099, addr:'Kuala Lumpur'},
+  {name:'Mid Valley',     lat:3.1177, lon:101.6772, addr:'Kuala Lumpur'},
+  {name:'Petaling Jaya',  lat:3.1073, lon:101.6067, addr:'Selangor'},
+  {name:'Sunway Pyramid', lat:3.0731, lon:101.6069, addr:'Selangor'},
+  {name:'Subang Jaya',    lat:3.0456, lon:101.5796, addr:'Selangor'},
+  {name:'Putrajaya',      lat:2.9264, lon:101.6964, addr:'Federal Territory'},
+  {name:'Cyberjaya',      lat:2.9202, lon:101.6534, addr:'Selangor'},
+  {name:'Johor Bahru',    lat:1.4927, lon:103.7414, addr:'Johor'},
+  {name:'Penang',         lat:5.4141, lon:100.3288, addr:'Pulau Pinang'},
+  {name:'Ipoh',           lat:4.5975, lon:101.0901, addr:'Perak'},
+];
+
+function getRecentPlaces() {
+  try { return JSON.parse(localStorage.getItem('ecoflow_recent_places') || '[]'); }
+  catch(e) { return []; }
+}
+function addRecentPlace(place) {
+  const recent = getRecentPlaces();
+  const dedup = recent.filter(p => !(Math.abs(p.lat - place.lat) < 0.0005 && Math.abs(p.lon - place.lon) < 0.0005));
+  dedup.unshift({name: place.name, lat: place.lat, lon: place.lon, addr: place.addr || ''});
+  localStorage.setItem('ecoflow_recent_places', JSON.stringify(dedup.slice(0, 8)));
+}
+
+function showDropdown(html) {
+  const dd = document.getElementById('searchDropdown');
+  dd.innerHTML = html;
+  dd.style.display = 'block';
+}
+function hideDropdown() {
+  const dd = document.getElementById('searchDropdown');
+  if (dd) dd.style.display = 'none';
+  _searchHiIdx = -1;
+}
+
+function onSearchFocus(k) {
+  _activeSearch = k;
+  const inp = document.getElementById(k === 's' ? 'iStart' : 'iEnd');
+  const v = inp.value.trim();
+  if (v.length < 2) {
+    renderDefaultSearchList(k);
+  } else {
+    onSearchInput(k, v);
   }
 }
+
+function renderDefaultSearchList(k) {
+  const recent = getRecentPlaces();
+  const inp = document.getElementById(k === 's' ? 'iStart' : 'iEnd');
+  document.getElementById(k === 's' ? 'clrS' : 'clrE').classList.toggle('vis', inp.value.length > 0);
+
+  const curBtnHTML = `
+    <div class="sd-item" onclick="pickCurrentLoc('${k}')">
+      <div class="sd-ico curloc">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </div>
+      <div class="sd-info">
+        <div class="sd-name" style="color:var(--accent)">Use current location</div>
+        <div class="sd-addr">Where you are now</div>
+      </div>
+    </div>`;
+
+  let html = curBtnHTML;
+  if (recent.length > 0) {
+    html += `<div class="sd-hdr">Recent</div>`;
+    html += recent.map(p => `
+      <div class="sd-item" onclick='selectPlace(${escJson(JSON.stringify(p))}, "${k}")'>
+        <div class="sd-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="sd-info">
+          <div class="sd-name">${escHtml(p.name)}</div>
+          <div class="sd-addr">${escHtml(p.addr || '')}</div>
+        </div>
+      </div>`).join('');
+  }
+  html += `<div class="sd-hdr">Popular in Malaysia</div>`;
+  html += POPULAR_PLACES.map(p => `
+    <div class="sd-item" onclick='selectPlace(${escJson(JSON.stringify(p))}, "${k}")'>
+      <div class="sd-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <div class="sd-info">
+        <div class="sd-name">${escHtml(p.name)}</div>
+        <div class="sd-addr">${escHtml(p.addr)}</div>
+      </div>
+    </div>`).join('');
+
+  _searchResults = [{__current:true}, ...recent, ...POPULAR_PLACES];
+  showDropdown(html);
+}
+
+function escJson(s) {
+  return s.replace(/'/g, "&#39;"); 
+}
+
+function onSearchInput(k, v) {
+  _activeSearch = k;
+  const clearBtn = document.getElementById(k === 's' ? 'clrS' : 'clrE');
+  clearBtn.classList.toggle('vis', v.length > 0);
+
+  // Short input → default list (recent + popular)
+  if (v.trim().length < 2) {
+    renderDefaultSearchList(k);
+    return;
+  }
+
+  // Debounce Nominatim call (don't spam their free service)
+  if (_searchTimer) clearTimeout(_searchTimer);
+  showDropdown(`<div class="sd-hint"><div style="display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:8px"></div>Searching…</div>`);
+  _searchTimer = setTimeout(() => doGeocodeSearch(k, v), 350);
+}
+
+async function doGeocodeSearch(k, query) {
+  try {
+    // Nominatim free geocoding — global. Bias toward MY by countrycodes.
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=8&addressdetails=1&accept-language=en`;
+    const r = await fetch(url, {signal: AbortSignal.timeout(6000), headers:{'Accept':'application/json'}});
+    const results = await r.json();
+    if (!Array.isArray(results) || results.length === 0) {
+      showDropdown(`<div class="sd-hint">No places found for "${escHtml(query)}"</div>`);
+      _searchResults = [];
+      return;
+    }
+    const places = results.map(r => ({
+      name: r.name || (r.display_name || '').split(',')[0],
+      lat:  parseFloat(r.lat),
+      lon:  parseFloat(r.lon),
+      addr: (r.display_name || '').split(',').slice(1, 4).join(',').trim(),
+    }));
+    _searchResults = places;
+    const html = places.map((p, i) => `
+      <div class="sd-item ${i === _searchHiIdx ? 'active' : ''}" data-idx="${i}" onclick='selectPlace(${escJson(JSON.stringify(p))}, "${k}")'>
+        <div class="sd-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+        <div class="sd-info">
+          <div class="sd-name">${escHtml(p.name)}</div>
+          <div class="sd-addr">${escHtml(p.addr)}</div>
+        </div>
+      </div>`).join('');
+    showDropdown(html);
+  } catch(e) {
+    console.warn('Geocode failed:', e);
+    showDropdown(`<div class="sd-hint">Search failed. Check your connection.</div>`);
+  }
+}
+
+function onSearchKey(k, event) {
+  const dd = document.getElementById('searchDropdown');
+  if (!dd || dd.style.display === 'none') return;
+  const items = dd.querySelectorAll('.sd-item');
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    _searchHiIdx = Math.min(items.length - 1, _searchHiIdx + 1);
+    items.forEach((it, i) => it.classList.toggle('active', i === _searchHiIdx));
+    if (items[_searchHiIdx]) items[_searchHiIdx].scrollIntoView({block:'nearest'});
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    _searchHiIdx = Math.max(0, _searchHiIdx - 1);
+    items.forEach((it, i) => it.classList.toggle('active', i === _searchHiIdx));
+    if (items[_searchHiIdx]) items[_searchHiIdx].scrollIntoView({block:'nearest'});
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    if (_searchHiIdx >= 0 && items[_searchHiIdx]) items[_searchHiIdx].click();
+  } else if (event.key === 'Escape') {
+    hideDropdown();
+  }
+}
+
+let draftMarkers = {s: null, e: null}; // 记录临时选中的大头针
+
+// 1. 在地图上打点的视觉反馈函数
+function drawDraftMarker(k, p) {
+  if (draftMarkers[k]) map.removeLayer(draftMarkers[k]);
+  if (!p) return;
+  const color = k === 's' ? '#22C55E' : '#EF4444';
+  const mk = L.divIcon({
+    html: `<div style="width:16px;height:16px;background:${color};border:3px solid white;border-radius:50%;box-shadow:0 0 12px ${color}"></div>`,
+    className: '', iconAnchor: [8, 8],
+  });
+  draftMarkers[k] = L.marker([p.lat, p.lon], {icon: mk})
+    .addTo(map).bindPopup(`<b>${p.name}</b>`).openPopup();
+  map.flyTo([p.lat, p.lon], 14, {animate:true, duration:0.6}); // 镜头起飞
+}
+
+function selectPlace(placeJsonStr, k) {
+  let place;
+  try {
+    place = typeof placeJsonStr === 'string'
+      ? JSON.parse(placeJsonStr.replace(/&quot;/g, '"'))
+      : placeJsonStr;
+  } catch(e) { console.warn('bad place json', e); return; }
+
+  if (k === 's') C.s = place; else C.e = place;
+  const inp = document.getElementById(k === 's' ? 'iStart' : 'iEnd');
+  inp.value = place.name;
+  inp.blur();
+  hideDropdown();
+  document.getElementById(k === 's' ? 'clrS' : 'clrE').classList.add('vis');
+
+  addRecentPlace(place);
+  
+  // 【关键修复】：选中后立刻在地图上画出图钉并飞过去！
+  drawDraftMarker(k, place);
+
+  if (C.s && C.e) { openPanel(); step('mode'); }
+  else {
+    const other = k === 's' ? 'iEnd' : 'iStart';    document.getElementById(other).focus();
+  }
+}
+
+function useCurrentLoc(k, event) {
+  event.stopPropagation();
+  pickCurrentLoc(k);
+}
+
+async function pickCurrentLoc(k) {
+  if (!navigator.geolocation) {
+    showToast('Location not supported by this browser');
+    return;
+  }
+  showDropdown(`<div class="sd-hint"><div style="display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:8px"></div>Getting your location…</div>`);
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const lat = pos.coords.latitude, lon = pos.coords.longitude;
+    meP = [lat, lon];
+    plMe();
+    // Reverse-geocode to get a human-readable name
+    let name = 'Current location';
+    let addr = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=en`);
+      const d = await r.json();
+      if (d && d.address) {
+        name = d.address.road || d.address.suburb || d.address.city || d.address.town || d.name || 'Current location';
+        addr = (d.display_name || '').split(',').slice(0, 3).join(',').trim();
+      }
+    } catch(e) {}
+    const place = {name, lat, lon, addr, __current: true};
+    selectPlace(place, k);
+  }, (err) => {
+    hideDropdown();
+    showToast('Could not get your location: ' + (err.message || 'denied'));
+  }, {timeout: 8000, enableHighAccuracy: true, maximumAge: 60000});
+}
+
+
+// 覆写原版的 clrIn 函数，清除文字时把地图上的图钉也拔掉
 function clrIn(k, e) {
   e.stopPropagation();
-  const id = k==='s' ? 'iStart' : 'iEnd';
+  const id = k === 's' ? 'iStart' : 'iEnd';
   document.getElementById(id).value = '';
-  document.getElementById(k==='s'?'clrS':'clrE').classList.remove('vis');
-  if (k==='s') C.s = null; else C.e = null;
+  document.getElementById(k === 's' ? 'clrS' : 'clrE').classList.remove('vis');
+  if (k === 's') C.s = null; else C.e = null;
+  
+  // 【关键修复】：拔掉图钉
+  if (draftMarkers[k]) { map.removeLayer(draftMarkers[k]); draftMarkers[k] = null; }
+  
   if (!C.s || !C.e) closePanel();
   clrMap();
+  hideDropdown();
 }
+
 function swapLoc() {
   [C.s, C.e] = [C.e, C.s];
   document.getElementById('iStart').value = C.s ? C.s.name : '';
@@ -1184,6 +1597,12 @@ function swapLoc() {
   document.getElementById('clrE').classList.toggle('vis', !!C.e);
   if (C.s && C.e) { openPanel(); step('mode'); }
 }
+
+// Close dropdown on outside click
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('searchWrap');
+  if (!wrap.contains(e.target)) hideDropdown();
+});
 
 /* ─── PANEL STATE ─── */
 let J = {mode: null, mix: null, cp: null, selectedRoute: null};
@@ -1372,6 +1791,33 @@ async function getRoute() {
     const profile = MODE_PROFILE[J.mode] || 'driving';
     const paths = await fetchOSRMAlternatives(profile);
 
+    // 【专业级拦截】：如果跨越南中国海，或者完全找不到路
+    if (!paths || paths.length === 0) {
+      pc.innerHTML = `
+        <div class="ph-hd">
+          <button class="ph-back" onclick="step('mode')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+          <div style="flex:1">
+            <div class="ph-title">Route Unavailable</div>
+            <div class="ph-sub">${C.s?.name} → ${C.e?.name}</div>
+          </div>
+          <button class="ph-close" onclick="closePanel()">✕</button>
+        </div>
+        <div class="empty-state" style="margin-top: 20px;">
+          <div class="es-ico" style="color:var(--text3)">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div class="es-title">Cannot ${J.mode} there</div>
+          <div class="es-sub">Routing engine cannot find a valid land connection. The locations might be separated by ocean.</div>
+          <button class="btn-sec" style="margin-top:20px; width:auto; padding:8px 24px;" onclick="step('mode')">Try another mode</button>
+        </div>`;
+      pf.innerHTML = '';
+      clrMap(); // 清除地图上残留的点和线
+      return;
+    }
+
     // Build 3 variant options for the selected mode
     const baseOpt = data.all_options_ranked_by_eco.find(o => o.mode === J.mode)
                  || data.all_options_ranked_by_eco[0];
@@ -1409,9 +1855,9 @@ async function fetchOSRMAlternatives(profile) {
       }));
     }
   } catch(e) { console.warn('OSRM alt failed:', e); }
-  // Fallback single straight line
-  const dist = haversine(C.s.lat, C.s.lon, C.e.lat, C.e.lon) * 1000;
-  return [{coords:[[C.s.lat,C.s.lon],[C.e.lat,C.e.lon]], distance_m:dist, duration_s:dist/10, steps:[]}];
+  
+  // 【彻底干掉画直线的逻辑】找不到真实的马路就直接返回 null
+  return null; 
 }
 
 function haversine(lat1,lon1,lat2,lon2){
@@ -1420,54 +1866,64 @@ function haversine(lat1,lon1,lat2,lon2){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
+
 function buildRouteVariants(baseOpt, paths, baseDistKm) {
-  // Generate n variants, each scaled from baseOpt by actual path distance
   const out = [];
-  const n = Math.min(paths.length, 3);
-  // Best carbon = shortest path; best time = fastest; etc
-  for (let i = 0; i < n; i++) {
-    const p = paths[i];
-    const distKm = p.distance_m / 1000;
-    const durMin = p.duration_s / 60;
+  const isDriving = ['Drive','Carpool','Motorcycle','Grab / E-hailing','Park & Ride','Bus / RapidKL'].includes(J.mode);
+  const carpoolDiv = J.mode === 'Carpool' ? 2 : 1;
+  const kmPerL = J.mode === 'Motorcycle' ? 40 : 12;
+
+  // 核心去重：只保留真实存在的、且距离差异大于 100米的路线
+  const uniquePaths = [paths[0]];
+  for (let i = 1; i < paths.length; i++) {
+    if (Math.abs(paths[i].distance_m - paths[0].distance_m) > 100) {
+      uniquePaths.push(paths[i]);
+    }
+  }
+
+  for (let i = 0; i < uniquePaths.length; i++) {
+    const path = uniquePaths[i];
+    const distKm = path.distance_m / 1000;
     const scale = baseDistKm > 0 ? distKm / baseDistKm : 1;
 
-    // Per-variant estimates: scale the base mode estimates
-    const time_mins = Math.max(1, Math.round(baseOpt.time_mins * (durMin > 0 && baseDistKm > 0 ? (p.duration_s/60) / (baseOpt.time_mins) : scale)));
-    const cost_rm   = +(baseOpt.cost_rm * scale).toFixed(2);
-    const carbon_kg = +(baseOpt.carbon_kg * scale).toFixed(3);
-    // Fuel only applies to driving modes
-    const isDriving = ['Drive','Carpool','Motorcycle','Grab / E-hailing','Park & Ride'].includes(J.mode);
-    // Malaysia avg car fuel economy ~12 km/L for car, 40 km/L for motorcycle
-    const kmPerL = J.mode === 'Motorcycle' ? 40 : 12;
-    const fuel_l = isDriving ? +(distKm / kmPerL).toFixed(2) : 0;
-    // Carpool halves per-person cost/fuel/carbon
-    const carpoolDiv = J.mode === 'Carpool' ? 2 : 1;
+    const time_mins  = Math.max(1, Math.round(path.duration_s / 60)); 
+    const cost_rm    = +(baseOpt.cost_rm * scale).toFixed(2);
+    const carbon_kg  = +(baseOpt.carbon_kg * scale).toFixed(3);
+    const fuel_l     = isDriving ? +(distKm / kmPerL).toFixed(2) : 0;
 
-    // ETA
     const now = new Date();
-    const eta = new Date(now.getTime() + time_mins*60000);
+    const eta = new Date(now.getTime() + time_mins * 60000);
     const etaStr = `${String(eta.getHours()).padStart(2,'0')}:${String(eta.getMinutes()).padStart(2,'0')}`;
 
-    // Eco score: scale the base eco score; shortest distance gets small boost, longest slight penalty
-    const ecoAdj = i === 0 ? 0 : (i === 1 ? -3 : -6);
-    const eco_score = Math.max(0, Math.min(100, Math.round(baseOpt.eco_score + ecoAdj - (scale-1)*20)));
+    const eco_score = Math.max(0, Math.min(100, Math.round(baseOpt.eco_score - (scale-1)*20)));
+
+    let vName = uniquePaths.length === 1 ? "Best Route" : (ROUTE_VARIANT_NAMES[i] || `Route ${i+1}`);
+    let vDesc = uniquePaths.length === 1 ? "Optimal path" : (i===0?"Quickest":i===1?"Alternative":"Scenic");
+    
+    // 【专业 UI】：跨海时显示航班信息
+    if (path.isFallback) {
+        vName = "✈️ Flight / Ferry";
+        vDesc = "Cross-sea transit required";
+    }
 
     out.push({
       idx: i,
-      variantName: ROUTE_VARIANT_NAMES[i] || `Route ${i+1}`,
+      variantName: vName,
+      variantDesc: vDesc,
       color: ROUTE_VARIANT_COLORS[i] || '#888',
       mode: J.mode,
       time_mins,
-      cost_rm: +(cost_rm/carpoolDiv).toFixed(2),
-      carbon_kg: +(carbon_kg/carpoolDiv).toFixed(3),
+      cost_rm: +(cost_rm / carpoolDiv).toFixed(2),
+      carbon_kg: +(carbon_kg / carpoolDiv).toFixed(3),
       distance_km: +distKm.toFixed(2),
-      fuel_l: +(fuel_l/carpoolDiv).toFixed(2),
+      fuel_l: +(fuel_l / carpoolDiv).toFixed(2),
       eta: etaStr,
       eco_score,
       carbon_saved_vs_driving: baseOpt.carbon_saved_vs_driving || 0,
-      cost_saved_vs_driving: baseOpt.cost_saved_vs_driving || 0,
+      cost_saved_vs_driving:   baseOpt.cost_saved_vs_driving   || 0,
       congestion: baseOpt.congestion,
-      pathIdx: i,
+      pathIdx: paths.indexOf(path),
+      sharesPath: false, 
     });
   }
   return out;
@@ -1479,20 +1935,39 @@ function renderRouteOptions(data, variants, paths) {
   const pf = document.getElementById('panelFooterBar');
   const j = data.journey;
 
-  // AI picks best variant: highest eco score
-  const bestVariant = variants.reduce((a,b) => a.eco_score >= b.eco_score ? a : b, variants[0]);
-  bestVariant.isBest = true;
-  J.selectedRoute = bestVariant;
+  variants.forEach((v, i) => { v.isBest = (i === 0); });
+  J.selectedRoute = variants[0];
 
-  // Mode tab switcher HTML — allows switching mode without going back
-  const allModes = data.all_options_ranked_by_eco || [];
-  const modeTabsHTML = allModes.map(o => `
-    <div class="mtab ${o.mode === J.mode ? 'sel' : ''}" onclick="switchMode('${o.mode.replace(/'/g, "\\'")}')">
-      <div>${getIcon(o.mode)}</div>
-      <div class="mtab-lbl">${o.mode.split(' ')[0].split('/')[0]}</div>
+  const ALL_MODES = ['Drive', 'Carpool', 'Motorcycle', 'Grab / E-hailing', 'Bus / RapidKL', 'MRT / LRT', 'Park & Ride', 'Cycling', 'Walking'];
+  
+  // 智能过滤：如果出发地和目的地都不在雪隆区(粗略坐标)，隐藏轨道交通
+  const inKL = (lat, lon) => lat > 2.6 && lat < 3.5 && lon > 101.2 && lon < 102.0;
+  const validModes = ALL_MODES.filter(m => {
+     if ((m === 'MRT / LRT' || m === 'Park & Ride') && (!inKL(C.s.lat, C.s.lon) && !inKL(C.e.lat, C.e.lon))) return false;
+     return true;
+  });
+
+  const MODE_SHORT = {
+    'Drive':'Drive', 'Carpool':'Carpool', 'Motorcycle':'Moto', 'Grab / E-hailing':'Grab',
+    'Bus / RapidKL':'Bus', 'MRT / LRT':'MRT', 'Park & Ride':'P+Ride', 'Cycling':'Cycle', 'Walking':'Walk',
+  };
+
+  const modeTabsHTML = validModes.map(m => `
+    <div class="mtab ${m === J.mode ? 'sel' : ''}" onclick="switchMode('${m.replace(/'/g, "\\'")}')">
+      <div>${getIcon(m)}</div>
+      <div class="mtab-lbl">${MODE_SHORT[m] || m}</div>
     </div>
   `).join('');
 
+  const allModes = data.all_options_ranked_by_eco || [];
+  const validCrossModes = allModes.filter(m => validModes.includes(m.mode));
+  const crossBest = validCrossModes[0]; 
+  const crossBestIsSelected = crossBest && crossBest.mode === J.mode;
+  const crossBestColor = crossBest ? (MC[crossBest.mode] || '#22C55E') : '#22C55E';
+
+  const weatherChipHTML = `<span class="jchip" id="wxChip" style="display:none"></span>`;
+
+  // 渲染主体内容（路线列表）
   pc.innerHTML = `
     <div class="ph-hd">
       <button class="ph-back" onclick="step('mode')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
@@ -1508,27 +1983,50 @@ function renderRouteOptions(data, variants, paths) {
         <span class="jchip">${iconSized('pin',12)} ${j.distance_km} km</span>
         <span class="jchip">${iconSized('clock',12)} ${j.departure_time}</span>
         <span class="jchip" style="background:${CC[j.congestion]||'#F59E0B'}18;color:${CC[j.congestion]||'#F59E0B'};border-color:${CC[j.congestion]||'#F59E0B'}40">${j.congestion} traffic</span>
+        ${weatherChipHTML}
       </div>
-      <div class="ai-banner">
-        <div class="ai-hd">${iconSized('sparkle',13)} AI Recommendation</div>
-        <div class="ai-txt">${data.ai_recommendation}</div>
-      </div>
-      <div class="slabel">${variants.length} ${J.mode} routes · click to preview</div>
+
+      <div class="slabel">Your ${J.mode} routes · click to preview</div>
       <div id="variantList">${variants.map(v => renderVariantCard(v)).join('')}</div>
+
+      ${!crossBestIsSelected && crossBest ? `
+        <div class="slabel" style="margin-top:18px">${iconSized('sparkle',12)} AI's Overall Best Mode</div>
+        <div class="ai-banner" style="margin-bottom:10px">
+          <div class="ai-hd">${iconSized('sparkle',13)} AI Recommendation</div>
+          <div class="ai-txt">${escHtml(data.ai_recommendation)}</div>
+        </div>
+        <div class="cross-mode-card" onclick="switchMode('${crossBest.mode.replace(/'/g, "\\'")}')">
+          <div class="cm-left">
+            <div class="cm-ico" style="background:${crossBestColor}22;color:${crossBestColor}">${getIcon(crossBest.mode)}</div>
+            <div class="cm-info">
+              <div class="cm-ttl">${crossBest.mode}</div>
+              <div class="cm-sub">${crossBest.time_mins}m · RM${crossBest.cost_rm} · ${crossBest.carbon_kg}kg CO₂</div>
+            </div>
+          </div>
+          <div class="cm-right">
+            <div class="cm-eco">ECO ${crossBest.eco_score}</div>
+            <div class="cm-cta">Switch →</div>
+          </div>
+        </div>
+      ` : `
+        <div class="ai-banner" style="margin-top:14px">
+          <div class="ai-hd">${iconSized('sparkle',13)} AI Recommendation</div>
+          <div class="ai-txt">${escHtml(data.ai_recommendation)}</div>
+          <div style="font-size:11px;color:var(--accent);margin-top:6px;font-weight:700">✓ ${J.mode} is already the AI's top pick for this trip.</div>
+        </div>
+      `}
     </div>`;
 
+  // 渲染底部按钮（加入 sticky 定位，让它永远在最下面）
+  pf.style.cssText = "position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 14px; z-index: 10;";
   pf.innerHTML = `
-    <button class="btn-nav" id="startNavBtn" onclick="startNavigation()">
-      ${ICONS.navStart}
-      Start Navigation
-    </button>`;
-}
+      <button class="btn-nav" id="startNavBtn" onclick="startNavigation()" style="width: 100%;">
+        ${ICONS.navStart}
+        Start Navigation
+      </button>
+  `;
 
-function switchMode(mode) {
-  if (mode === J.mode) return;
-  J.mode = mode;
-  if (mode === 'Carpool') { step('cp-ask'); return; }
-  getRoute();
+  loadWeatherChip();
 }
 
 function renderVariantCard(v) {
@@ -1541,8 +2039,11 @@ function renderVariantCard(v) {
     <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:${col};border-radius:4px 0 0 4px;"></div>
     <div class="rctop">
       <div class="rc-color" style="background:${col}">${v.idx+1}</div>
-      <div class="rcname">${v.variantName} ${v.isBest?'':''}</div>
-      ${v.isBest ? `<span class="rctag">Best</span>` : `<span class="rc-eta">ETA ${v.eta}</span>`}
+      <div style="flex:1;min-width:0">
+        <div class="rcname">${v.variantName}</div>
+        <div style="font-size:10px;color:var(--text3);font-weight:500;margin-top:1px">${v.variantDesc || ''} · arrives ${v.eta}</div>
+      </div>
+      ${v.isBest ? `<span class="rctag">★ Recommended</span>` : ''}
     </div>
     <div class="rcgrid">
       <div class="rcs"><div class="rcsv">${v.time_mins}<span>m</span></div><div class="rcsl">Time</div></div>
@@ -1552,7 +2053,6 @@ function renderVariantCard(v) {
         ? `<div class="rcs"><div class="rcsv">${v.fuel_l}<span>L</span></div><div class="rcsl">Fuel</div></div>`
         : `<div class="rcs"><div class="rcsv">${v.distance_km}<span>km</span></div><div class="rcsl">Dist</div></div>`}
     </div>
-    ${v.isBest ? `<div style="font-size:10px;color:var(--text3);margin-top:4px">Arrives ${v.eta}</div>`:''}
     <div class="ebar">
       <div class="etrack"><div class="efill" style="width:${v.eco_score}%;background:${ec}"></div></div>
       <span class="enum" style="color:${ec}">ECO ${v.eco_score}</span>
@@ -1602,52 +2102,122 @@ function drawMapRoutes(paths, variants) {
     html: `<div style="width:16px;height:16px;background:${bg};border:3px solid rgba(255,255,255,.9);border-radius:50%;box-shadow:0 0 12px ${glow},0 2px 8px rgba(0,0,0,.4)"></div>`,
     className: '', iconAnchor: [8, 8],
   });
-  mL.push(L.marker(s, {icon: mk('#22C55E','rgba(34,197,94,.6)')}).addTo(map).bindPopup(`<b>${C.s.name}</b>`));
-  mL.push(L.marker(e, {icon: mk('#EF4444','rgba(239,68,68,.6)')}).addTo(map).bindPopup(`<b>${C.e.name}</b>`));
+  mL.push(L.marker(s, {icon: mk('#22C55E','rgba(34,197,94,.6)')}).addTo(map).bindPopup(`<b>${escHtml(C.s.name)}</b>`));
+  mL.push(L.marker(e, {icon: mk('#EF4444','rgba(239,68,68,.6)')}).addTo(map).bindPopup(`<b>${escHtml(C.e.name)}</b>`));
 
-  // Draw all paths (inactive ones thinner/faded, selected one bold)
+  // Draw one polyline per VARIANT (always 3), not per path.
+  // If variant.sharesPath is true (no distinct OSRM alternative), we offset the line
+  // perpendicular to its segments so parallel tracks are visible on the map.
   const selIdx = J.selectedRoute ? J.selectedRoute.idx : 0;
-  paths.forEach((p, i) => {
-    const v = variants[i];
-    if (!v) return;
-    const isSel = i === selIdx;
-    const polyline = L.polyline(p.coords, {
+  variants.forEach((v) => {
+    const path = paths[v.pathIdx] || paths[0];
+    if (!path) return;
+
+    // Offset amount in meters when variants share geometry: 0 / +25 / -25
+    let coords = path.coords;
+    if (v.sharesPath) {
+      const offsetMeters = v.idx === 1 ? 25 : (v.idx === 2 ? -25 : 0);
+      if (offsetMeters !== 0) coords = offsetPolyline(path.coords, offsetMeters);
+    }
+
+    const isSel = v.idx === selIdx;
+    const polyline = L.polyline(coords, {
       color: v.color,
       weight: isSel ? 7 : 4,
-      opacity: isSel ? 0.95 : 0.45,
+      opacity: isSel ? 0.95 : 0.55,
       lineCap: 'round',
       lineJoin: 'round',
+      dashArray: path.isFallback ? '10, 15' : null // 如果是跨海直达，画成虚线
     }).addTo(map);
     polyline.bindPopup(`
       <div style="font-family:var(--font);padding:4px 2px">
-        <b style="color:${v.color}">${v.variantName}</b> · ${v.mode}<br>
+        <b style="color:${v.color}">${v.variantName}</b> · ${escHtml(v.mode)}<br>
         <span style="color:#A0AAB8">${v.time_mins} min · RM${v.cost_rm} · ${v.carbon_kg}kg CO₂</span><br>
         <span style="color:${v.eco_score>=75?'#22C55E':v.eco_score>=45?'#F59E0B':'#EF4444'}">Eco ${v.eco_score}/100</span>
       </div>`);
-    polyline.on('click', () => selectVariant(i));
+    polyline.on('click', () => selectVariant(v.idx));
+    polyline._variantIdx = v.idx;
+    polyline._variantCoords = coords;
     rL.push(polyline);
   });
 
-  // Fit bounds including all paths
+  // Fit bounds including all paths (+ extra left pad so they don't sit behind the panel)
   const allBounds = L.latLngBounds([s, e]);
   paths.forEach(p => p.coords.forEach(c => allBounds.extend(c)));
-  map.fitBounds(allBounds, {padding: [60, 60], paddingTopLeft:[480, 60]});  // pad left for panel
+  map.fitBounds(allBounds, {padding: [60, 60], paddingTopLeft:[480, 60]});
+}
+
+// Offset every point of a polyline perpendicular to its local direction by `meters`.
+// Used to visually separate multiple variants that share the same OSRM path.
+function offsetPolyline(coords, meters) {
+  if (coords.length < 2) return coords;
+  // Approx conversion: 1 degree latitude ≈ 111320 m; longitude scales with cos(lat)
+  const degPerMeterLat = 1 / 111320;
+  const result = [];
+  for (let i = 0; i < coords.length; i++) {
+    const [lat, lon] = coords[i];
+    const prev = coords[Math.max(0, i-1)];
+    const next = coords[Math.min(coords.length-1, i+1)];
+    const dLat = next[0] - prev[0];
+    const dLon = next[1] - prev[1];
+    // Normal vector (perpendicular, rotated 90°): (-dLon, dLat) then normalize
+    const len = Math.sqrt(dLat*dLat + dLon*dLon) || 1;
+    const nLat = -dLon / len;
+    const nLon =  dLat / len;
+    // Convert offset meters to degrees
+    const offLat = nLat * meters * degPerMeterLat;
+    const offLon = nLon * meters * degPerMeterLat / Math.max(0.1, Math.cos(lat * Math.PI / 180));
+    result.push([lat + offLat, lon + offLon]);
+  }
+  return result;
 }
 
 function highlightPath(idx) {
-  if (!_paths) return;
-  const selIdx = idx;
-  rL.forEach((pl, i) => {
-    const isSel = i === selIdx;
-    pl.setStyle({weight: isSel ? 7 : 4, opacity: isSel ? 0.95 : 0.45});
+  if (!rL || rL.length === 0) return;
+  rL.forEach((pl) => {
+    const isSel = pl._variantIdx === idx;
+    pl.setStyle({weight: isSel ? 7 : 4, opacity: isSel ? 0.95 : 0.55});
     if (isSel) pl.bringToFront();
   });
 }
 
 /* ═══════════════════════════════════════════════════════
-   NAVIGATION VIEW — turn-by-turn simulated
+   NAVIGATION VIEW — realistic simulated movement
+   Per-mode speeds, traffic lights, congestion, and variance
    ═══════════════════════════════════════════════════════ */
-let navState = null;  // {coords, totalDist, elapsed, totalTime, idx, timer, muted, steps}
+let navState = null;
+
+// Base average speeds in km/h used to SCALE movement visually.
+// Real travel time comes from the backend-calculated time_mins.
+// These ratios ensure a car visually moves much faster than a bike.
+const MODE_BASE_KMH = {
+  'Walking': 5,
+  'Cycling': 16,
+  'Motorcycle': 38,
+  'Drive': 38,
+  'Carpool': 38,
+  'Grab / E-hailing': 38,
+  'Park & Ride': 32,
+  'Bus / RapidKL': 22,
+  'MRT / LRT': 48,
+};
+
+// How often traffic lights / stops happen (meters), and typical pause (sim seconds)
+const MODE_STOPS = {
+  // mode: { intervalM: avg distance between stops, pauseS: avg pause, prob: chance at each check }
+  'Drive':            { intervalM: 420, pauseMin: 8,  pauseMax: 22, prob: 0.55 },
+  'Carpool':          { intervalM: 420, pauseMin: 8,  pauseMax: 22, prob: 0.55 },
+  'Grab / E-hailing': { intervalM: 420, pauseMin: 8,  pauseMax: 22, prob: 0.55 },
+  'Motorcycle':       { intervalM: 500, pauseMin: 5,  pauseMax: 14, prob: 0.40 },
+  'Park & Ride':      { intervalM: 480, pauseMin: 8,  pauseMax: 18, prob: 0.50 },
+  'Bus / RapidKL':    { intervalM: 380, pauseMin: 10, pauseMax: 25, prob: 0.70 },
+  'Cycling':          { intervalM: 450, pauseMin: 4,  pauseMax: 12, prob: 0.30 },
+  'Walking':          { intervalM: 400, pauseMin: 3,  pauseMax: 8,  prob: 0.20 },
+  'MRT / LRT':        { intervalM: 9999,pauseMin: 0,  pauseMax: 0,  prob: 0    }, // no road stops
+};
+
+// Sim-to-real time ratio: 1 real second = SIM_SCALE simulated seconds (so trips complete in demo time)
+const SIM_SCALE = 2;
 
 function startNavigation() {
   if (!J.selectedRoute || !_paths) return;
@@ -1655,71 +2225,231 @@ function startNavigation() {
   const path = _paths[v.pathIdx] || _paths[0];
   if (!path) return;
 
-  // Fly map to start, zoom in
-  map.flyTo([C.s.lat, C.s.lon], 16, {animate: true, duration: 1.2});
-
-  // Hide the left panel, show nav view
   closePanel();
   document.getElementById('navView').classList.add('show');
+  document.body.classList.add('nav-preview');
 
-  // Init state
+  // AI-like Auto-zoom to show the whole route strategy
+  const bounds = L.latLngBounds(path.coords);
+  map.flyToBounds(bounds, {padding: [80, 80], duration: 1.5, maxZoom: 16});
+
+  // Focus only on the selected route polyline
+  rL.forEach((pl) => {
+    const isSel = pl._variantIdx === v.idx;
+    pl.setStyle(isSel ? {weight: 8, opacity: 0.95} : {weight: 2, opacity: 0.15});
+    if (isSel) pl.bringToFront();
+  });
+
+  renderNavPreview(v, path);
+}
+
+function renderNavPreview(v, path) {
+  const top = document.querySelector('#navView .nav-top');
+  const bot = document.querySelector('#navView .nav-bottom');
+  
+  // Clean Professional Icon (No low-grade emoji)
+  const iconHtml = iconSized(MODE_ICON_MAP[v.mode] || 'car', 32); 
+
+  top.innerHTML = `
+    <div style="width:54px;height:54px;border-radius:14px;background:${v.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${iconHtml}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:700">Trip Strategy</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);margin-top:2px;line-height:1.3">${v.variantName} via ${v.mode}</div>
+    </div>
+    <button class="nav-mute" onclick="cancelNavPreview()" style="width:40px;height:40px;background:transparent">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>`;
+
+  bot.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      <div class="nav-stat"><div class="nav-stat-v">${v.time_mins}<span> min</span></div><div class="nav-stat-l">Time</div></div>
+      <div class="nav-stat"><div class="nav-stat-v"><span>RM</span>${v.cost_rm}</div><div class="nav-stat-l">Cost</div></div>
+      <div class="nav-stat"><div class="nav-stat-v">${v.carbon_kg}<span> kg</span></div><div class="nav-stat-l">CO₂</div></div>
+    </div>
+    <div class="nav-actions">
+      <button class="btn-nav" style="flex:1; background:var(--accent); color:#000;" onclick="beginNavSim()">
+        ${ICONS.navStart} Let's Begin
+      </button>
+    </div>`;
+}
+
+function cancelNavPreview() {
+  document.getElementById('navView').classList.remove('show');
+  document.body.classList.remove('nav-preview');
+  // Restore the route options panel
+  openPanel();
+  if (window._lastAnalysis && window._variants) {
+    renderRouteOptions(window._lastAnalysis, window._variants, _paths);
+  }
+  // Restore all routes visibility
+  rL.forEach((pl) => {
+    const isSel = pl._variantIdx === (J.selectedRoute ? J.selectedRoute.idx : 0);
+    pl.setStyle(isSel ? {weight:7, opacity:0.95} : {weight:4, opacity:0.55});
+    if (isSel) pl.bringToFront();
+  });
+}
+
+function beginNavSim() {
+  // Stage 2: actual navigation starts
+  if (!J.selectedRoute || !_paths) return;
+  const v = J.selectedRoute;
+  const path = _paths[v.pathIdx] || _paths[0];
+  if (!path) return;
+
+  document.body.classList.remove('nav-preview');
+
+  document.querySelector('#navView .nav-top').innerHTML = `
+    <div class="nav-dir-icon" id="navDirIcon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+    </div>
+    <div class="nav-dir-info">
+      <div class="nav-dir-dist" id="navNextDist">—<span> m</span></div>
+      <div class="nav-dir-instr" id="navInstr">Starting navigation…</div>
+    </div>`;
+  document.querySelector('#navView .nav-bottom').innerHTML = `
+    <div class="nav-progress"><div class="nav-progress-fill" id="navProg" style="width:0%"></div></div>
+    <div class="nav-stats">
+      <div class="nav-stat"><div class="nav-stat-v" id="navEta">—<span></span></div><div class="nav-stat-l">ETA</div></div>
+      <div class="nav-stat"><div class="nav-stat-v" id="navRemain">—<span> km</span></div><div class="nav-stat-l">Remaining</div></div>
+      <div class="nav-stat"><div class="nav-stat-v" id="navSpeed">—<span> km/h</span></div><div class="nav-stat-l">Speed</div></div>
+    </div>
+    <div class="nav-actions">
+      <button class="nav-end" onclick="endNav()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>
+        End Trip
+      </button>
+      <button class="nav-mute" id="navMuteBtn" onclick="toggleMute()" title="Mute voice">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      </button>
+    </div>`;
+
+  // Now zoom in tight on the start of the route
+  map.flyTo([C.s.lat, C.s.lon], 17, {animate: true, duration: 1.2});
+
+  const targetKmh = (v.distance_km > 0 && v.time_mins > 0)
+    ? (v.distance_km / (v.time_mins / 60))
+    : (MODE_BASE_KMH[v.mode] || 25);
+
   navState = {
     coords: path.coords.slice(),
     steps: path.steps || [],
-    totalDist: v.distance_km,
-    elapsed: 0,
-    totalTime: v.time_mins * 60, // seconds
-    idx: 0,
-    timer: null,
+    totalDistKm: v.distance_km,
+    totalTimeS:  v.time_mins * 60,
+    elapsedSimS: 0,
+    distTraveledKm: 0,
+    targetKmh: targetKmh,
+    currentKmh: targetKmh, // 直接从目标速度起步
+    baseKmh: MODE_BASE_KMH[v.mode] || 25,
+    lastTickRealMs: Date.now(),
     muted: false,
     variant: v,
     nextStepIdx: 0,
+    vehMarker: null,
+    running: true, // 新增：控制 60fps 动画的开关
+    _uiTick: 0     // 新增：UI 节流计时器
   };
 
-  // Start vehicle marker animation
-  if (navState.vehMarker) map.removeLayer(navState.vehMarker);
+  // 智能识别：跨海是飞机，平时是箭头。缩短了 CSS transition 以匹配 60fps
+  let navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%;height:100%;fill:${v.color};stroke:#fff;stroke-width:2.5px;stroke-linejoin:round;transform:rotate(0deg);transition:transform 0.1s linear;"><path d="M12 2L4 20l8-4 8 4L12 2z"/></svg>`;
+  if (path.isFallback) {
+      navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%;height:100%;fill:${v.color};stroke:#fff;stroke-width:1.5px;transform:rotate(0deg);transition:transform 0.1s linear;"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`;
+  }
+
   navState.vehMarker = L.marker(navState.coords[0], {
     icon: L.divIcon({
-      html: `<div style="width:28px;height:28px;background:${v.color};border:3px solid #fff;border-radius:50%;box-shadow:0 0 16px ${v.color},0 4px 12px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:11px">${v.idx+1}</div>`,
-      className:'', iconAnchor:[14,14],
+      html: `<div style="width:36px;height:36px;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.5));display:flex;align-items:center;justify-content:center;">
+               ${navIconSvg}
+             </div>`,
+      className:'', iconAnchor:[18,18],
     })
   }).addTo(map);
 
-  // Dim non-selected routes on map
-  rL.forEach((pl, i) => {
-    pl.setStyle(i === v.pathIdx
-      ? {weight:7, opacity:0.95}
-      : {weight:2, opacity:0.2});
-    if (i === v.pathIdx) pl.bringToFront();
+  rL.forEach((pl) => {
+    const isSel = pl._variantIdx === v.idx;
+    pl.setStyle(isSel ? {weight:7, opacity:0.95} : {weight:2, opacity:0.2});
+    if (isSel) pl.bringToFront();
   });
 
-  // Kick off simulation
   updateNavUI();
-  navState.timer = setInterval(navTick, 400);  // update every 400ms
-  speak(`Starting navigation to ${C.e.name}.`);
+  speak(path.isFallback ? `Initiating flight to ${C.e.name}.` : `Starting navigation to ${C.e.name}.`);
+
+  // 【核心修复】：抛弃落后的 setInterval，采用原生级 60帧 requestAnimationFrame 渲染
+  function stepAnim() {
+      if (!navState || !navState.running) return;
+      navTick();
+      if (navState && navState.running) {
+          requestAnimationFrame(stepAnim);
+      }
+  }
+  requestAnimationFrame(stepAnim);
 }
+
 
 function navTick() {
   if (!navState) return;
-  // Advance elapsed time; simulate faster than real-time (1s sim = ~8s real time)
-  const step = 3.2;  // sim seconds per tick
-  navState.elapsed += step;
+  const now = Date.now();
+  const realDt = Math.max(0.016, (now - navState.lastTickRealMs) / 1000); // 保护极小 dt
+  navState.lastTickRealMs = now;
 
-  // Interpolate position along coords by fraction of total time
-  const frac = Math.min(1, navState.elapsed / navState.totalTime);
-  const pos = interpolateAlongPath(navState.coords, frac);
-  if (pos && navState.vehMarker) navState.vehMarker.setLatLng(pos);
+  if (now < navState.stoppedUntilRealMs) {
+    navState.currentKmh = 0;
+    navState.elapsedSimS += realDt * SIM_SCALE;
+    // 只有在时间过了整秒时才更新 UI，减少 DOM 负担
+    if (Math.floor(now/1000) > Math.floor((now-realDt*1000)/1000)) updateNavUI();
+    return;
+  }
 
-  // Gently pan map
-  if (pos) map.panTo(pos, {animate:true, duration:0.3, noMoveStart:true});
+  const progressFrac = Math.min(1, navState.distTraveledKm / Math.max(0.01, navState.totalDistKm));
+  const timeFrac     = Math.min(1, navState.elapsedSimS / Math.max(1, navState.totalTimeS));
+  const paceAdjust   = timeFrac > 0.02 ? (progressFrac / Math.max(timeFrac, 0.02)) : 1;
+  const variance     = 0.98 + Math.random() * 0.04; 
+  
+  const targetNow = navState.targetKmh / Math.max(0.8, Math.min(1.2, paceAdjust));
+  
+  // 增加简单的速度平滑过渡 (Lerp)
+  const idealKmh = Math.max(navState.baseKmh * 0.5, Math.min(navState.baseKmh * 1.4, targetNow * variance));
+  navState.currentKmh += (idealKmh - navState.currentKmh) * 0.1;
 
-  // Check for next turn announcement
-  checkNextStep(pos, frac);
+  const simDtHours = (realDt * SIM_SCALE) / 3600;
+  const deltaKm = navState.currentKmh * simDtHours;
+  navState.distTraveledKm += deltaKm;
+  navState.elapsedSimS += realDt * SIM_SCALE;
 
-  updateNavUI();
+  const pos = pointAtDistanceKm(navState.coords, navState.distTraveledKm);
+  
+  if (pos && navState.vehMarker) {
+    navState.vehMarker.setLatLng(pos);
 
-  // Arrived?
-  if (frac >= 1) {
+    if (navState.lastPos) {
+       const dy = pos[0] - navState.lastPos[0];
+       const dx = pos[1] - navState.lastPos[1];
+       // 只有当位移足够大时才更新角度，防止原地微小抖动导致车头乱转
+       if (Math.abs(dx) > 0.00001 || Math.abs(dy) > 0.00001) {
+           let angle = Math.atan2(dx, dy) * 180 / Math.PI;
+           const iconEl = navState.vehMarker.getElement().firstChild;
+           if(iconEl) {
+             // 缩短过渡时间以匹配 50ms 的高频刷新
+             iconEl.style.transition = "transform 0.1s linear";
+             iconEl.style.transform = `rotate(${angle}deg)`;
+           }
+       }
+    }
+    navState.lastPos = pos;
+  }
+
+  if (pos) {
+      // 核心平滑逻辑：使用带动画的 panTo，因为刷新极快，地图会像流水一样滑动
+      map.panTo(pos, { animate: true, duration: 0.1, easeLinearity: 1 });
+  }
+
+  // 降低 UI 更新频率（每秒大约更新 2 次即可，不需要 20 次）
+  navState._uiTick = (navState._uiTick || 0) + 1;
+  if (navState._uiTick % 10 === 0) {
+      updateNavUI();
+      checkNextStep(pos, progressFrac);
+  }
+
+  if (navState.distTraveledKm >= navState.totalDistKm) {
     clearInterval(navState.timer);
     navState.timer = null;
     speak(`You have arrived at ${C.e.name}.`);
@@ -1727,31 +2457,25 @@ function navTick() {
   }
 }
 
-function interpolateAlongPath(coords, frac) {
-  if (!coords || coords.length < 2) return coords ? coords[0] : null;
-  // Compute cumulative distances
-  const segs = [];
-  let total = 0;
-  for (let i = 1; i < coords.length; i++) {
-    const d = haversine(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
-    segs.push({from: coords[i-1], to: coords[i], d});
-    total += d;
-  }
-  const target = frac * total;
+// Return the lat/lon at exactly `dKm` kilometers along the polyline
+function pointAtDistanceKm(coords, dKm) {
+  if (!coords || coords.length === 0) return null;
+  if (coords.length === 1) return coords[0];
   let cum = 0;
-  for (const s of segs) {
-    if (cum + s.d >= target) {
-      const f = s.d === 0 ? 0 : (target - cum) / s.d;
-      return [s.from[0] + (s.to[0]-s.from[0])*f, s.from[1] + (s.to[1]-s.from[1])*f];
+  for (let i = 1; i < coords.length; i++) {
+    const seg = haversine(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
+    if (cum + seg >= dKm) {
+      const f = seg === 0 ? 0 : (dKm - cum) / seg;
+      return [coords[i-1][0] + (coords[i][0]-coords[i-1][0])*f,
+              coords[i-1][1] + (coords[i][1]-coords[i-1][1])*f];
     }
-    cum += s.d;
+    cum += seg;
   }
   return coords[coords.length-1];
 }
 
 function checkNextStep(pos, frac) {
   if (!pos || !navState.steps || navState.steps.length === 0) return;
-  // Find the step whose maneuver location is closest ahead
   const nextIdx = Math.min(navState.steps.length - 1,
     Math.floor(frac * navState.steps.length) + 1);
   if (nextIdx !== navState.nextStepIdx) {
@@ -1769,7 +2493,6 @@ function humanizeStep(st) {
   const type = st.maneuver.type;
   const mod  = st.maneuver.modifier || '';
   const name = st.name || '';
-
   let action = 'Continue';
   if (type === 'turn') action = `Turn ${mod}`;
   else if (type === 'new name') action = 'Continue';
@@ -1781,32 +2504,38 @@ function humanizeStep(st) {
   else if (type === 'fork') action = `Keep ${mod}`;
   else if (type === 'end of road') action = `At the end, turn ${mod}`;
   else if (type === 'roundabout') action = `Take the roundabout`;
-  else action = `Continue ${mod}`;
-
+  else action = `Continue ${mod}`.trim();
+  
+  // 新增：针对公交和轻轨的上下车提示
+  if (J.mode === 'MRT / LRT' || J.mode === 'Bus / RapidKL') {
+     if (type === 'depart') return `Board transit at nearest station`;
+     if (type === 'arrive') return `Alight at station near destination`;
+  }
+  
   return name ? `${action} onto ${name}` : action;
 }
 
 function updateNavUI() {
   if (!navState) return;
   const v = navState.variant;
-  const remainingFrac = 1 - Math.min(1, navState.elapsed / navState.totalTime);
-  const remainingKm = +(v.distance_km * remainingFrac).toFixed(2);
-  const remainingSec = Math.max(0, Math.round(navState.totalTime - navState.elapsed));
-  const speed = v.distance_km > 0 && navState.totalTime > 0
-    ? Math.round((v.distance_km / navState.totalTime) * 3600) : 0;
+  const remainingKm = Math.max(0, +(navState.totalDistKm - navState.distTraveledKm).toFixed(2));
+  const remainingSec = Math.max(0, Math.round(navState.totalTimeS - navState.elapsedSimS));
 
   const now = new Date();
-  const etaMs = now.getTime() + remainingSec * 1000;
-  const etaD = new Date(etaMs);
+  const etaMs = now.getTime() + remainingSec * 1000;  // in sim-world, this is wall-clock-correct if we assume real time ≈ sim time for display
+  // For display, just take scheduled finish based on real-world total time
+  const etaD = new Date(now.getTime() + (remainingKm / Math.max(1, navState.targetKmh)) * 3600 * 1000);
   const etaStr = `${String(etaD.getHours()).padStart(2,'0')}:${String(etaD.getMinutes()).padStart(2,'0')}`;
 
-  // Next turn distance (approx)
+  // Next turn distance
   let nextDist = 0, nextInstr = 'Continue straight';
   if (navState.steps && navState.steps.length > 0) {
     const nextIdx = Math.min(navState.steps.length - 1, navState.nextStepIdx);
     const st = navState.steps[nextIdx];
     if (st) {
-      nextDist = st.distance ? Math.round(st.distance * remainingFrac) : 0;
+      // Approximate: distance to the next maneuver = remaining portion scaled to step distance
+      const stepFrac = 1 - (navState.distTraveledKm / Math.max(0.01, navState.totalDistKm));
+      nextDist = st.distance ? Math.max(0, Math.round(st.distance * stepFrac)) : 0;
       const instr = humanizeStep(st);
       if (instr) nextInstr = instr;
     }
@@ -1815,7 +2544,14 @@ function updateNavUI() {
     nextInstr = `Head to ${C.e.name}`;
   }
 
-  // Update DOM
+  // Stopped indicator overrides the instruction
+  const isStopped = Date.now() < navState.stoppedUntilRealMs;
+  if (isStopped) {
+    nextInstr = ['Drive','Carpool','Grab / E-hailing','Bus / RapidKL','Motorcycle','Park & Ride'].includes(v.mode)
+      ? '🚦 Stopped — red light'
+      : '⏸️ Stopped';
+  }
+
   const distEl = document.getElementById('navNextDist');
   if (distEl) {
     distEl.innerHTML = nextDist >= 1000
@@ -1825,10 +2561,9 @@ function updateNavUI() {
   document.getElementById('navInstr').textContent = nextInstr;
   document.getElementById('navEta').innerHTML = `${etaStr}<span></span>`;
   document.getElementById('navRemain').innerHTML = `${remainingKm}<span> km</span>`;
-  document.getElementById('navSpeed').innerHTML = `${speed}<span> km/h</span>`;
-  document.getElementById('navProg').style.width = `${Math.round((1-remainingFrac)*100)}%`;
+  document.getElementById('navSpeed').innerHTML = `${Math.round(navState.currentKmh)}<span> km/h</span>`;
+  document.getElementById('navProg').style.width = `${Math.round((navState.distTraveledKm/Math.max(0.01,navState.totalDistKm))*100)}%`;
 
-  // Direction icon
   updateDirIcon(navState.steps[navState.nextStepIdx]);
 }
 
@@ -1877,7 +2612,7 @@ function endNav() {
   if (navState.timer) clearInterval(navState.timer);
   if (navState.vehMarker) map.removeLayer(navState.vehMarker);
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-  const completed = navState.elapsed >= navState.totalTime * 0.9;
+  const completed = navState.distTraveledKm >= navState.totalDistKm * 0.9;
   navState = null;
   document.getElementById('navView').classList.remove('show');
 
@@ -1895,7 +2630,7 @@ function endNav() {
 }
 
 function arrivedAtDestination() {
-  showToast('🎉 You have arrived!');
+  showToast('Destination Reached'); 
   setTimeout(() => endNav(), 1500);
 }
 
@@ -2066,12 +2801,108 @@ async function sendChat() {
 
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+/* ═══════════════════════════════════════════════════════
+   FREE APIs — Open-Meteo weather + air quality (no key)
+   ═══════════════════════════════════════════════════════ */
+const WMO_EMOJI = {
+  0:'☀️', 1:'🌤️', 2:'⛅', 3:'☁️',
+  45:'🌫️', 48:'🌫️',
+  51:'🌦️', 53:'🌦️', 55:'🌦️',
+  56:'🌧️', 57:'🌧️',
+  61:'🌧️', 63:'🌧️', 65:'⛈️',
+  66:'🌧️', 67:'🌧️',
+  71:'🌨️', 73:'🌨️', 75:'❄️', 77:'❄️',
+  80:'🌦️', 81:'🌧️', 82:'⛈️',
+  85:'🌨️', 86:'❄️',
+  95:'⛈️', 96:'⛈️', 99:'⛈️',
+};
+const WMO_LABEL = {
+  0:'Clear', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+  45:'Fog', 48:'Fog',
+  51:'Drizzle', 53:'Drizzle', 55:'Heavy drizzle',
+  56:'Freezing drizzle', 57:'Freezing drizzle',
+  61:'Light rain', 63:'Rain', 65:'Heavy rain',
+  66:'Freezing rain', 67:'Freezing rain',
+  71:'Snow', 73:'Snow', 75:'Heavy snow', 77:'Snow',
+  80:'Showers', 81:'Rain showers', 82:'Heavy showers',
+  85:'Snow showers', 86:'Snow showers',
+  95:'Thunderstorm', 96:'Thunder + hail', 99:'Thunder + hail',
+};
+
+let _weatherCache = null;  // {lat, lon, data, ts}
+
+async function fetchWeather(lat, lon) {
+  // 5-minute cache to avoid hammering the API on repeated calls
+  if (_weatherCache && Math.abs(_weatherCache.lat - lat) < 0.05 &&
+      Math.abs(_weatherCache.lon - lon) < 0.05 &&
+      Date.now() - _weatherCache.ts < 5 * 60 * 1000) {
+    return _weatherCache.data;
+  }
+  try {
+    const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code,wind_speed_10m,is_day&timezone=auto`;
+    const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5,pm10,us_aqi`;
+    const [wxR, aqR] = await Promise.all([
+      fetch(wxUrl, {signal: AbortSignal.timeout(5000)}),
+      fetch(aqUrl, {signal: AbortSignal.timeout(5000)}).catch(() => null),
+    ]);
+    const wx = wxR.ok ? await wxR.json() : null;
+    const aq = aqR && aqR.ok ? await aqR.json() : null;
+    const data = {wx, aq};
+    _weatherCache = {lat, lon, data, ts: Date.now()};
+    return data;
+  } catch(e) {
+    console.warn('Weather fetch failed:', e);
+    return null;
+  }
+}
+
+async function loadWeatherChip() {
+  if (!C.s) return;
+  const d = await fetchWeather(C.s.lat, C.s.lon);
+  const chip = document.getElementById('wxChip');
+  if (!chip || !d || !d.wx || !d.wx.current) return;
+  const c = d.wx.current;
+  const emoji = WMO_EMOJI[c.weather_code] || '🌡️';
+  const label = WMO_LABEL[c.weather_code] || 'Weather';
+  const temp = Math.round(c.temperature_2m);
+
+  // Air quality: show only if PM2.5 > threshold or AQI unhealthy
+  let aqTag = '';
+  if (d.aq && d.aq.current) {
+    const pm25 = d.aq.current.pm2_5;
+    const aqi  = d.aq.current.us_aqi;
+    if (aqi && aqi > 100) {
+      aqTag = ` · <span style="color:var(--orange)">AQI ${Math.round(aqi)}</span>`;
+    } else if (pm25 && pm25 > 35) {
+      aqTag = ` · <span style="color:var(--orange)">PM2.5 ${Math.round(pm25)}</span>`;
+    }
+  }
+
+  chip.innerHTML = `${emoji} ${temp}°C · ${label}${aqTag}`;
+  chip.style.display = 'flex';
+  chip.title = `${label}, ${temp}°C, wind ${Math.round(c.wind_speed_10m)} km/h`;
+
+  // Contextual tip: raining + outdoor mode → gentle hint
+  const raining = c.weather_code >= 51 && c.weather_code <= 99;
+  const outdoor = ['Cycling','Walking','Motorcycle'].includes(J.mode);
+  if (raining && outdoor && c.precipitation > 0.3) {
+    const pb = document.querySelector('#variantList');
+    if (pb && !document.getElementById('wxTip')) {
+      const tip = document.createElement('div');
+      tip.id = 'wxTip';
+      tip.style.cssText = 'background:var(--orange-bg);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--orange);line-height:1.5';
+      tip.innerHTML = `${emoji} It's raining (${c.precipitation.toFixed(1)} mm/hr). Consider Drive / MRT / Grab — ${J.mode.toLowerCase()} may be uncomfortable.`;
+      pb.parentNode.insertBefore(tip, pb);
+    }
+  }
+}
+
+/* ═══ PROFILE ═══ */
 /* ═══ PROFILE ═══ */
 async function loadProfile() {
   if (!USER) return;
   const body = document.getElementById('profileBody');
 
-  // Build the profile form with account info at top
   const initial = (USER.name || USER.email || 'U').trim().charAt(0).toUpperCase();
   body.innerHTML = `
     <div class="profile-hero">
@@ -2081,6 +2912,17 @@ async function loadProfile() {
         <div class="profile-email">${escHtml(USER.email || '')}${USER.guest?' · guest':''}</div>
       </div>
     </div>
+    
+    <div class="slabel">App Settings</div>
+    <div class="form-group">
+      <label class="form-label">Theme Mode</label>
+      <select class="form-input" id="prefTheme" onchange="changeThemeSetting()" style="cursor:pointer">
+        <option value="auto">Auto (Follow Time)</option>
+        <option value="day">Always Day</option>
+        <option value="night">Always Night</option>
+      </select>
+    </div>
+
     <div class="slabel">Commute Preferences</div>
     <div class="form-group">
       <label class="form-label">Prefer Fast</label>
@@ -2106,17 +2948,21 @@ async function loadProfile() {
     <div class="form-group">
       <label class="form-label">Vehicle Type</label>
       <select class="form-input" id="prefVehicle" style="cursor:pointer">
-        <option value="car">Car</option>
+        <option value="car">Petrol Car</option>
+        <option value="ev">Electric Vehicle (EV)</option>
         <option value="motorcycle">Motorcycle</option>
         <option value="none">No Vehicle</option>
       </select>
     </div>
-    <button class="btn-nav" onclick="saveProfile()" style="margin-top:4px">Save Preferences</button>
+    <button class="btn-nav" onclick="updatePrefs()" style="margin-top:4px">Save Preferences</button>
     <div id="profileMsg" style="margin-top:10px;font-size:12px;color:var(--accent);text-align:center;min-height:16px"></div>
     <button class="profile-logout" onclick="logout()">Log out</button>
   `;
 
-  // Load existing preferences
+  // Set the current theme dropdown value
+  document.getElementById('prefTheme').value = localStorage.getItem('ecoflow_theme') || 'auto';
+
+  // Load existing preferences from backend
   try {
     const r = await fetch(`${API}/api/v1/user-profile/${USER.id}`);
     const d = await r.json();
@@ -2159,6 +3005,42 @@ async function saveProfile() {
   }
 }
 
+function changeThemeSetting() {
+  const val = document.getElementById('prefTheme').value;
+  themePref = val;
+  
+  if (val === 'auto') {
+    localStorage.removeItem('ecoflow_theme');
+    applyMode(getModeByTime());
+  } else {
+    localStorage.setItem('ecoflow_theme', val);
+    applyMode(val);
+  }
+  showToast("Theme updated!");
+}
+
+async function updatePrefs() {
+  if (!USER) return;
+  const prefs = {
+    user_id: USER.id,
+    prefer_fast: parseFloat(document.getElementById('prefFast').value) / 100,
+    prefer_cheap: parseFloat(document.getElementById('prefCheap').value) / 100,
+    prefer_green: parseFloat(document.getElementById('prefGreen').value) / 100,
+    vehicle_type: document.getElementById('prefVehicle').value
+  };
+
+  try {
+    await fetch(`${API}/api/v1/user-profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prefs)
+    });
+    showToast("Preferences updated!");
+  } catch (e) {
+    console.error("Failed to update preferences", e);
+  }
+}
+
 /* ═══ CARPOOL QUICK FAB ═══ */
 function quickCP() {
   if (C.s && C.e) {
@@ -2187,7 +3069,6 @@ function quickCP() {
 /* ═══ POI CLICK ON MAP ═══ */
 let poiPopup = null;
 map.on("click", async function(e) {
-  // Don't trigger during navigation
   if (navState) return;
   const {lat, lng} = e.latlng;
   if (poiPopup) map.closePopup(poiPopup);
@@ -2202,8 +3083,12 @@ map.on("click", async function(e) {
     const d = await r.json();
     const name = d.name || d.address?.road || d.address?.suburb || "This location";
     const addr = [d.address?.road, d.address?.suburb, d.address?.city].filter(Boolean).join(", ");
-    const safeN = name.replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-    const safeLat = lat.toFixed(6), safeLng = lng.toFixed(6);
+    
+    // CRITICAL FIX: Properly escape single quotes for the inline onclick handler
+    const safeN = name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    const safeLat = lat.toFixed(6);
+    const safeLng = lng.toFixed(6);
+    
     poiPopup.setContent(`
       <div class="pp-wrap">
         <div class="pp-name">${escHtml(name)}</div>
@@ -2248,6 +3133,7 @@ function setPOI(lat, lng, name, role) {
   else {
     const other = role === "start" ? "iEnd" : "iStart";
     document.getElementById(other).focus();
+    showToast(role === "start" ? "Start set! Now tap destination." : "Destination set! Now tap start.");
   }
 }
 
@@ -2257,6 +3143,11 @@ function setPOI(lat, lng, name, role) {
 (function init(){
   loadUser();
   updateAvatarUI();
+  
+  // 修复：正确获取本地保存的主题设置
+  let themePref = localStorage.getItem('ecoflow_theme') || 'auto';
+  const initialMode = (themePref === 'auto') ? getMode() : themePref;
+  applyMode(initialMode);
   if (!USER) {
     showAuth();
   } else {
@@ -2280,3 +3171,13 @@ function setPOI(lat, lng, name, role) {
 </script>
 </body>
 </html>
+
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    map.invalidateSize();
+  }, 500);
+});
+
+window.addEventListener('resize', () => {
+  map.invalidateSize();
+});
