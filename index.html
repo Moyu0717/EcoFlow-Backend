@@ -555,12 +555,50 @@ body.map-night .fab:not(.primary) {
   height:100%;background:linear-gradient(90deg,var(--accent),var(--lime));
   border-radius:2px;transition:width .3s;
 }
-.nav-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
-.nav-stat{text-align:center;padding:4px 2px}
-.nav-stat-v{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--text);line-height:1.1;white-space:nowrap}
-.nav-stat-v span{font-size:11px;color:var(--text3);font-weight:500;font-family:var(--font)}
-.nav-stat-l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;font-weight:600}
-.nav-actions{display:flex;gap:8px}
+.nav-stats {
+  display: flex !important;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 10px 5px;
+  width: 100%;
+}
+.nav-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* 居中对齐 */
+  justify-content: center;
+}
+.nav-stat-v {
+  font-family: var(--mono);
+  font-size: 22px; /* 增大字体，更有导航感 */
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+}
+
+.nav-stat-v span {
+  font-size: 12px;
+  color: var(--text3);
+  margin-left: 2px;
+}
+
+.nav-stat-l {
+  font-size: 11px;
+  color: var(--text3);
+  text-transform: uppercase;
+  margin-top: 6px;
+  letter-spacing: 0.5px;
+}
+
+/* 按钮行：确保高度一致 */
+.nav-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
 .nav-end{
   flex:1;padding:13px;border-radius:12px;background:var(--red);
   color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:700;
@@ -1330,6 +1368,15 @@ function applyMode(mode) {
   if (tileLayer) map.removeLayer(tileLayer);
   
   tileLayer = L.tileLayer(TILES[mode], {maxZoom: 19, tileSize: 256}).addTo(map);
+
+  const MAPBOX_STYLE = (mode === 'day') 
+    ? 'mapbox/traffic-day-v2' 
+    : 'mapbox/traffic-night-v2';
+
+  tileLayer = L.tileLayer(`https://api.mapbox.com/styles/v1/${MAPBOX_STYLE}/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
+    maxZoom: 19, 
+    tileSize: 256
+  }).addTo(map);
   
   const icon = document.getElementById('modeIcon');
   if (icon) {
@@ -1628,9 +1675,18 @@ function selectPlace(placeJsonStr, k) {
   // 【关键修复】：选中后立刻在地图上画出图钉并飞过去！
   drawDraftMarker(k, place);
 
-  if (C.s && C.e) { openPanel(); step('mode'); }
-  else {
-    const other = k === 's' ? 'iEnd' : 'iStart';    document.getElementById(other).focus();
+  if (C.s && C.e) { 
+    openPanel(); 
+    step('mode'); 
+  } else {
+    // 修复点不开的问题：稍微延迟聚焦下一个框，避开事件冲突
+    setTimeout(() => {
+      const other = k === 's' ? 'iEnd' : 'iStart';
+      const nextInput = document.getElementById(other);
+      nextInput.focus();
+      // 触发一次 focus 逻辑显示常用地点
+      onSearchFocus(k === 's' ? 'e' : 's'); 
+    }, 50); 
   }
 }
 
@@ -1715,6 +1771,28 @@ function getAutoTime() {
   return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 }
 
+// 获取当前的静音/开启图标
+function getMuteIcon(isVoiceOn) {
+  if (isVoiceOn) {
+    return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+  } else {
+    return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`;
+  }
+}
+
+// 专门控制预览界面的语音开关
+function togglePreviewMute() {
+  const s = getSettings();
+  const newState = !s.voice;
+  updateSetting('voice', newState); // 更新全局设置
+  
+  const btn = document.getElementById('previewMuteBtn');
+  if (btn) {
+    btn.innerHTML = getMuteIcon(newState);
+    btn.style.color = newState ? 'var(--text2)' : 'var(--red)';
+  }
+  showToast(newState ? "Voice Guidance On" : "Voice Muted");
+}
 
 /* ─── NAV RAIL ─── */
 function navTo(tab) {
@@ -2144,6 +2222,16 @@ function renderRouteOptions(data, variants, paths) {
   `;
 
   loadWeatherChip();
+
+  // 确保 Footer 块可见
+  pf.style.display = 'block';
+  pf.style.cssText = "position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 14px; z-index: 100;";
+  
+  pf.innerHTML = `
+      <button class="btn-nav" id="startNavBtn" onclick="startNavigation()" style="width: 100%;">
+        ${ICONS.navStart} Start Navigation
+      </button>
+  `;
 }
 
 function renderVariantCard(v) {
@@ -2368,40 +2456,42 @@ function startNavigation() {
 }
 
 function renderNavPreview(v, path) {
+  C.activeRoute = v;
   const top = document.querySelector('#navView .nav-top');
   const bot = document.querySelector('#navView .nav-bottom');
-  
-  // Clean Professional Icon (No low-grade emoji)
-  const iconHtml = iconSized(MODE_ICON_MAP[v.mode] || 'car', 30); 
-  const isDriving = ['Drive','Carpool','Motorcycle','Grab / E-hailing','Park & Ride'].includes(v.mode);
+  const iconHtml = iconSized(MODE_ICON_MAP[v.mode] || 'car', 28); 
 
   top.innerHTML = `
-    <div style="width:52px;height:52px;border-radius:12px;background:${v.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${iconHtml}</div>
-    <div style="flex:1;min-width:0">
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;font-weight:700">Route Preview</div>
-      <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:3px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(C.s.name)} → ${escHtml(C.e.name)}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:3px;font-weight:500">${v.variantName} · ${v.mode} · arrives ${v.eta}</div>
+    <div style="width:48px;height:48px;border-radius:12px;background:${v.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${iconHtml}</div>
+    <div style="flex:1;min-width:0;margin-left:12px">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;font-weight:700">Recommended Route</div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.variantName} via Traffic</div>
     </div>
-    <button class="nav-mute" onclick="cancelNavPreview()" style="background:transparent" title="Back to routes">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>`;
+    <button class="ph-close" onclick="cancelNavPreview()" style="background:var(--card);border:1px solid var(--border);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--text3)">✕</button>`;
 
   bot.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(${isDriving?4:3},1fr);gap:10px;margin-bottom:14px">
-      <div class="nav-stat"><div class="nav-stat-v">${v.time_mins}<span> min</span></div><div class="nav-stat-l">Duration</div></div>
-      <div class="nav-stat"><div class="nav-stat-v">${v.distance_km}<span> km</span></div><div class="nav-stat-l">Distance</div></div>
-      <div class="nav-stat"><div class="nav-stat-v"><span>RM</span>${v.cost_rm}</div><div class="nav-stat-l">Cost</div></div>
-      <div class="nav-stat"><div class="nav-stat-v">${v.carbon_kg}<span> kg</span></div><div class="nav-stat-l">CO₂</div></div>
-      ${isDriving ? `<div class="nav-stat"><div class="nav-stat-v">${v.fuel_l}<span> L</span></div><div class="nav-stat-l">Fuel</div></div>` : ''}
-    </div>
-    ${v.congestion ? `<div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:12px;font-weight:500">${v.congestion} traffic expected</div>` : ''}
-    <div class="nav-actions">
-      <button class="btn-nav" style="flex:1" onclick="beginNavSim()">
-        ${ICONS.navStart} Let's Go
-      </button>
-      <button class="nav-mute" id="navMuteBtn" onclick="toggleMute()" title="Mute voice">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-      </button>
+    <div style="padding: 12px 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <div>
+                <span style="font-size: 22px; font-weight: 800; color: #fff;">${v.time_mins} min</span>
+                <span style="font-size: 16px; color: var(--text2); margin-left: 4px;">(${v.distance_km} km)</span>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 14px; font-weight: 600; color: var(--accent);">${v.eta} arrival</div>
+            </div>
+        </div>
+        <div style="font-size: 13px; color: var(--text3); margin-bottom: 16px;">
+            Optimal route based on current conditions.
+        </div>
+        
+        <div class="nav-actions" style="display: flex; gap: 8px;">
+          <button class="btn-nav" style="flex: 1; height: 48px; border-radius: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="beginNavSim()">
+            ${ICONS.navStart} Let's Go
+          </button>
+          <button class="nav-mute" id="previewMuteBtn" style="width: 48px; height: 48px; border-radius: 24px; background: var(--card); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text2);" onclick="togglePreviewMute()">
+            ${getMuteIcon(getSettings().voice)}
+          </button>
+        </div>
     </div>`;
 }
 
@@ -2422,14 +2512,18 @@ function cancelNavPreview() {
 }
 
 function beginNavSim() {
-  // Stage 2: actual navigation starts
+  // 1. 基础验证
   if (!J.selectedRoute || !_paths) return;
   const v = J.selectedRoute;
   const path = _paths[v.pathIdx] || _paths[0];
   if (!path) return;
 
+  // 2. 切换 UI 状态：移除预览，显示导航视图
   document.body.classList.remove('nav-preview');
+  const nv = document.getElementById('navView');
+  nv.classList.add('show'); // 确保导航视图可见
 
+  // 3. 更新顶部面板 (显示方向和指令)
   document.querySelector('#navView .nav-top').innerHTML = `
     <div class="nav-dir-icon" id="navDirIcon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
@@ -2438,26 +2532,38 @@ function beginNavSim() {
       <div class="nav-dir-dist" id="navNextDist">—<span> m</span></div>
       <div class="nav-dir-instr" id="navInstr">Starting navigation…</div>
     </div>`;
+
+  // 4. 更新底部面板 (70px 极简高度 + 实时碳排)
+  document.querySelector('#navView .nav-bottom').style.position = 'relative'; // 必须是 relative 才能让进度条置顶
   document.querySelector('#navView .nav-bottom').innerHTML = `
-    <div class="nav-progress"><div class="nav-progress-fill" id="navProg" style="width:0%"></div></div>
-    <div class="nav-stats">
-      <div class="nav-stat"><div class="nav-stat-v" id="navEta">—<span></span></div><div class="nav-stat-l">ETA</div></div>
-      <div class="nav-stat"><div class="nav-stat-v" id="navRemain">—<span> km</span></div><div class="nav-stat-l">Remaining</div></div>
-      <div class="nav-stat"><div class="nav-stat-v" id="navSpeed">—<span> km/h</span></div><div class="nav-stat-l">Speed</div></div>
+    <div style="height: 3px; background: rgba(255,255,255,0.1); width: 100%; position: absolute; top: 0; left: 0;">
+        <div id="navProg" style="height: 100%; background: var(--accent); width: 0%; transition: width 0.3s;"></div>
     </div>
-    <div class="nav-actions">
-      <button class="nav-end" onclick="endNav()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>
-        End Trip
-      </button>
-      <button class="nav-mute" id="navMuteBtn" onclick="toggleMute()" title="Mute voice">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-      </button>
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px; height: 70px;">
+        <div style="flex: 1;">
+            <div id="navEta" style="font-size: 18px; font-weight: 800; color: #fff;">${v.eta}</div>
+            <div style="font-size: 10px; color: var(--text3); text-transform: uppercase;">Arrival</div>
+        </div>
+        <div style="flex: 1.5; text-align: center; border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+            <div style="display: flex; align-items: baseline; justify-content: center; gap: 3px;">
+                <span id="liveCarbon" style="font-size: 22px; font-family: var(--mono); font-weight: 800; color: var(--accent);">0.000</span>
+                <span style="font-size: 10px; color: var(--accent); font-weight: 700;">kg CO₂</span>
+            </div>
+            <div style="font-size: 9px; color: var(--text3); font-weight: 700;">LIVE EMISSIONS</div>
+        </div>
+        <div style="flex: 1; text-align: right; margin-right: 12px;">
+            <div id="navRemain" style="font-size: 18px; font-weight: 800; color: #fff;">${v.distance_km}<span>km</span></div>
+            <div id="navSpeed" style="font-size: 11px; color: var(--text3);">0 km/h</div>
+        </div>
+        <button onclick="endNav()" style="width: 42px; height: 42px; border-radius: 50%; background: var(--red); border: none; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="20" height="20" fill="white" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        </button>
     </div>`;
 
-  // Now zoom in tight on the start of the route
+  // 5. 地图镜头移动
   map.flyTo([C.s.lat, C.s.lon], 17, {animate: true, duration: 1.2});
 
+  // 6. 初始化导航引擎核心变量
   const targetKmh = (v.distance_km > 0 && v.time_mins > 0)
     ? (v.distance_km / (v.time_mins / 60))
     : (MODE_BASE_KMH[v.mode] || 25);
@@ -2470,18 +2576,18 @@ function beginNavSim() {
     elapsedSimS: 0,
     distTraveledKm: 0,
     targetKmh: targetKmh,
-    currentKmh: targetKmh, // 直接从目标速度起步
+    currentKmh: targetKmh,
     baseKmh: MODE_BASE_KMH[v.mode] || 25,
     lastTickRealMs: Date.now(),
     muted: false,
     variant: v,
     nextStepIdx: 0,
     vehMarker: null,
-    running: true, // 新增：控制 60fps 动画的开关
-    _uiTick: 0     // 新增：UI 节流计时器
+    running: true, 
+    _uiTick: 0
   };
 
-  // 智能识别：跨海是飞机，平时是箭头。缩短了 CSS transition 以匹配 60fps
+  // 7. 创建车头图标
   let navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%;height:100%;fill:${v.color};stroke:#fff;stroke-width:2.5px;stroke-linejoin:round;transform:rotate(0deg);transition:transform 0.1s linear;"><path d="M12 2L4 20l8-4 8 4L12 2z"/></svg>`;
   if (path.isFallback) {
       navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%;height:100%;fill:${v.color};stroke:#fff;stroke-width:1.5px;transform:rotate(0deg);transition:transform 0.1s linear;"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`;
@@ -2489,26 +2595,25 @@ function beginNavSim() {
 
   navState.vehMarker = L.marker(navState.coords[0], {
     icon: L.divIcon({
-      html: `<div style="width:36px;height:36px;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.5));display:flex;align-items:center;justify-content:center;">
-               ${navIconSvg}
-             </div>`,
+      html: `<div style="width:36px;height:36px;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.5));display:flex;align-items:center;justify-content:center;">${navIconSvg}</div>`,
       className:'', iconAnchor:[18,18],
     })
   }).addTo(map);
 
+  // 8. 设置地图路径样式
   rL.forEach((pl) => {
     const isSel = pl._variantIdx === v.idx;
     pl.setStyle(isSel ? {weight:7, opacity:0.95} : {weight:2, opacity:0.2});
     if (isSel) pl.bringToFront();
   });
 
+  // 9. 启动 60fps 动画动力引擎
   updateNavUI();
   speak(path.isFallback ? `Initiating flight to ${C.e.name}.` : `Starting navigation to ${C.e.name}.`);
 
-  // 【核心修复】：抛弃落后的 setInterval，采用原生级 60帧 requestAnimationFrame 渲染
   function stepAnim() {
       if (!navState || !navState.running) return;
-      navTick();
+      navTick(); // 执行每一帧的位移计算
       if (navState && navState.running) {
           requestAnimationFrame(stepAnim);
       }
@@ -2518,76 +2623,88 @@ function beginNavSim() {
 
 
 function navTick() {
-  if (!navState) return;
+  // 1. 确保引擎状态，如果没运行直接退出
+  if (!navState || !navState.running) return;
+
   const now = Date.now();
   const realDt = Math.max(0.016, (now - navState.lastTickRealMs) / 1000); // 保护极小 dt
   navState.lastTickRealMs = now;
 
+  // 模拟红绿灯/拥堵停止
   if (now < navState.stoppedUntilRealMs) {
     navState.currentKmh = 0;
     navState.elapsedSimS += realDt * SIM_SCALE;
-    // 只有在时间过了整秒时才更新 UI，减少 DOM 负担
     if (Math.floor(now/1000) > Math.floor((now-realDt*1000)/1000)) updateNavUI();
     return;
   }
 
+  // 2. 速度与距离计算 (让车子有加减速的真实感)
   const progressFrac = Math.min(1, navState.distTraveledKm / Math.max(0.01, navState.totalDistKm));
   const timeFrac     = Math.min(1, navState.elapsedSimS / Math.max(1, navState.totalTimeS));
   const paceAdjust   = timeFrac > 0.02 ? (progressFrac / Math.max(timeFrac, 0.02)) : 1;
   const variance     = 0.98 + Math.random() * 0.04; 
-  
+
   const targetNow = navState.targetKmh / Math.max(0.8, Math.min(1.2, paceAdjust));
-  
-  // 增加简单的速度平滑过渡 (Lerp)
   const idealKmh = Math.max(navState.baseKmh * 0.5, Math.min(navState.baseKmh * 1.4, targetNow * variance));
   navState.currentKmh += (idealKmh - navState.currentKmh) * 0.1;
 
   const simDtHours = (realDt * SIM_SCALE) / 3600;
-  const deltaKm = navState.currentKmh * simDtHours;
-  navState.distTraveledKm += deltaKm;
+  navState.distTraveledKm += navState.currentKmh * simDtHours;
   navState.elapsedSimS += realDt * SIM_SCALE;
 
+  // 3. 计算坐标并移动车辆
   const pos = pointAtDistanceKm(navState.coords, navState.distTraveledKm);
-  
+
   if (pos && navState.vehMarker) {
-    navState.vehMarker.setLatLng(pos);
+      if (navState.lastPos) {
+          const dy = pos[0] - navState.lastPos[0];
+          const dx = pos[1] - navState.lastPos[1];
+          const moveDist = Math.sqrt(dx * dx + dy * dy);
 
-    if (navState.lastPos) {
-       const dy = pos[0] - navState.lastPos[0];
-       const dx = pos[1] - navState.lastPos[1];
-       // 只有当位移足够大时才更新角度，防止原地微小抖动导致车头乱转
-       if (Math.abs(dx) > 0.00001 || Math.abs(dy) > 0.00001) {
-           let angle = Math.atan2(dx, dy) * 180 / Math.PI;
-           const iconEl = navState.vehMarker.getElement().firstChild;
-           if(iconEl) {
-             // 缩短过渡时间以匹配 50ms 的高频刷新
-             iconEl.style.transition = "transform 0.1s linear";
-             iconEl.style.transform = `rotate(${angle}deg)`;
-           }
-           // Also stash for updateDirIcon so the nav-top arrow can rotate to match heading
-           navState.prevPos = navState.lastPos;
-       }
-    }
-    navState.lastPos = pos;
+          // 阈值防抖与旋转
+          if (moveDist > 0.00001) { 
+              let targetAngle = Math.atan2(dx, dy) * 180 / Math.PI;
+              const markerEl = navState.vehMarker.getElement();
+              if (markerEl) {
+                  const iconSvg = markerEl.querySelector('.nav-arrow-svg');
+                  if (iconSvg) {
+                      iconSvg.style.transform = `rotate(${targetAngle}deg)`;
+                  }
+              }
+          }
+      }
+      // 更新位置
+      navState.vehMarker.setLatLng(pos);
+      navState.lastPos = pos; 
+      
+      // 【关键修复】：绝对不能用 map.panTo 动画！因为现在是 60帧/秒刷新，自带动画会让地图彻底卡死
+      map.setView(pos, map.getZoom(), { animate: false });
   }
 
-  if (pos) {
-      // 核心平滑逻辑：使用带动画的 panTo，因为刷新极快，地图会像流水一样滑动
-      map.panTo(pos, { animate: true, duration: 0.1, easeLinearity: 1 });
-  }
-
-  // 降低 UI 更新频率（每秒大约更新 2 次即可，不需要 20 次）
+  // 4. UI 降频更新 (每 10 帧更新一次数字，防止浏览器卡顿)
   navState._uiTick = (navState._uiTick || 0) + 1;
   if (navState._uiTick % 10 === 0) {
       updateNavUI();
       checkNextStep(pos, progressFrac);
   }
 
+  // 5. 实时碳排放追踪器 (核心卖点)
+  if (navState.variant) {
+      const v = navState.variant;
+      const carbonFactor = v.carbon_kg / Math.max(0.1, v.distance_km);
+      const currentLiveCarbon = (navState.distTraveledKm * carbonFactor).toFixed(3);
+      
+      const carbonEl = document.getElementById('liveCarbon');
+      if (carbonEl) {
+          carbonEl.textContent = currentLiveCarbon;
+      }
+  }
+
+  // 6. 到达终点逻辑
   if (navState.distTraveledKm >= navState.totalDistKm) {
-    clearInterval(navState.timer);
-    navState.timer = null;
-    speak(`You have arrived at ${C.e.name}.`);
-    setTimeout(() => arrivedAtDestination(), 800);
+      navState.running = false; // 关掉 60fps 引擎
+      speak(`You have arrived at ${C.e.name}.`);
+      setTimeout(() => arrivedAtDestination(), 800);
   }
 }
 
@@ -2779,24 +2896,33 @@ function toggleMute() {
 }
 
 function endNav() {
-  if (!navState) return;
-  if (navState.timer) clearInterval(navState.timer);
-  if (navState.vehMarker) map.removeLayer(navState.vehMarker);
-  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-  const completed = navState.distTraveledKm >= navState.totalDistKm * 0.9;
+  // 1. 关闭引擎和清理车辆
+  if (navState) {
+    navState.running = false; 
+    if (navState.vehMarker) map.removeLayer(navState.vehMarker);
+  }
   navState = null;
-  document.getElementById('navView').classList.remove('show');
+  
+  // 2. 隐藏导航 UI (重点修复：是 remove 'show')
+  const nv = document.getElementById('navView');
+  if (nv) nv.classList.remove('show');
+  document.body.classList.remove('nav-preview');
+  
+  // 3. 恢复地图正常交互
+  map.dragging.enable();
+  if (map.touchZoom) map.touchZoom.enable();
+  
+  // 4. 恢复所有路线的透明度
+  if (typeof rL !== 'undefined') {
+      rL.forEach(pl => pl.setStyle({weight:4, opacity:0.55}));
+  }
+  
+  showToast("Trip ended");
 
-  if (completed) {
-    saveCurrentTrip(() => {
-      showToast('Trip saved! +eco points 🌿');
-      navTo('impact');
-    });
-  } else {
-    openPanel();
-    if (window._lastAnalysis && window._variants) {
+  // 5. 重新打开路线选择侧边栏
+  openPanel();
+  if (window._lastAnalysis && window._variants) {
       renderRouteOptions(window._lastAnalysis, window._variants, _paths);
-    }
   }
 }
 
