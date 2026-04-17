@@ -502,57 +502,84 @@ body.map-night .fab:not(.primary) {
 #navView{
   position:fixed;inset:0;z-index:2000;display:none;flex-direction:column;
   pointer-events:none;
+  /* Respect the left rail so nav bars don't sit behind/over it */
+  padding-left:var(--rail-w);
 }
 #navView.show{display:flex}
 #navView > *{pointer-events:auto}
 .nav-top{
-  margin:16px;padding:16px 18px;
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:18px;box-shadow:var(--shadow-lg);backdrop-filter:blur(20px);
+  margin:14px auto 0;
+  padding:14px 16px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  box-shadow:var(--shadow-lg);
+  backdrop-filter:blur(20px);
   display:flex;align-items:center;gap:14px;
+  min-height:72px;
+  width:calc(100% - 28px);
+  max-width:640px;
 }
 .nav-dir-icon{
-  width:54px;height:54px;border-radius:14px;
+  width:52px;height:52px;border-radius:12px;
   background:var(--accent);color:#000;
   display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
+  transition:transform .4s cubic-bezier(.4,0,.2,1);
 }
-.nav-dir-icon svg{width:30px;height:30px;stroke-width:2.5}
+.nav-dir-icon svg{width:28px;height:28px;stroke-width:2.5}
 .nav-dir-info{flex:1;min-width:0}
 .nav-dir-dist{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text);line-height:1.1}
 .nav-dir-dist span{font-size:13px;color:var(--text3);font-weight:500;font-family:var(--font)}
 .nav-dir-instr{font-size:14px;color:var(--text2);font-weight:500;margin-top:4px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* Bottom card: sits at the bottom, never fights the top card */
 .nav-bottom{
-  margin-top:auto;margin:auto 16px 16px;padding:14px 18px;
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:18px;box-shadow:var(--shadow-lg);backdrop-filter:blur(20px);
+  margin:auto 14px 14px;
+  padding:14px 18px 16px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  box-shadow:var(--shadow-lg);
+  backdrop-filter:blur(20px);
+  max-width:640px;
+  margin-left:auto;
+  margin-right:auto;
+  width:calc(100% - 28px);
 }
-.nav-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
-.nav-stat{text-align:center}
-.nav-stat-v{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text);line-height:1}
+/* In active nav, the progress bar is its own row ABOVE the stats, with clear spacing */
+.nav-progress{
+  height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:14px;
+}
+.nav-progress-fill{
+  height:100%;background:linear-gradient(90deg,var(--accent),var(--lime));
+  border-radius:2px;transition:width .3s;
+}
+.nav-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.nav-stat{text-align:center;padding:4px 2px}
+.nav-stat-v{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--text);line-height:1.1;white-space:nowrap}
 .nav-stat-v span{font-size:11px;color:var(--text3);font-weight:500;font-family:var(--font)}
-.nav-stat-l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;font-weight:600}
+.nav-stat-l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;font-weight:600}
 .nav-actions{display:flex;gap:8px}
 .nav-end{
-  flex:1;padding:12px;border-radius:12px;background:var(--red);
+  flex:1;padding:13px;border-radius:12px;background:var(--red);
   color:#fff;border:none;font-family:var(--font);font-size:13px;font-weight:700;
   cursor:pointer;transition:var(--transition);display:flex;align-items:center;justify-content:center;gap:6px;
+  white-space:nowrap;
 }
 .nav-end:hover{background:#DC2626}
 .nav-mute{
-  width:44px;border-radius:12px;background:var(--card);border:1px solid var(--border);
+  width:46px;flex-shrink:0;border-radius:12px;background:var(--card);border:1px solid var(--border);
   color:var(--text2);cursor:pointer;transition:var(--transition);
   display:flex;align-items:center;justify-content:center;
 }
 .nav-mute:hover{background:var(--card2);color:var(--text)}
-.nav-progress{
-  height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:12px;
+
+/* Force "Let's Go" and similar action buttons to stay on one line */
+.nav-actions .btn-nav{
+  white-space:nowrap;padding:13px 16px;
 }
-.nav-progress-fill{
-  height:100%;background:linear-gradient(90deg,var(--accent),var(--lime));
-  border-radius:3px;transition:width .3s;
-}
+.nav-actions .btn-nav svg{flex-shrink:0}
 
 /* ═══════════════════════════════════════════════════════
    PANELS (Impact, Leaderboard, Chat, Profile) — LEFT SIDE, NOT FULL SCREEN
@@ -674,7 +701,55 @@ body.map-night .fab:not(.primary) {
 }
 .profile-logout:hover{background:var(--red-bg)}
 
-
+/* ═══ SETTINGS PANEL ═══ */
+.st-group{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;margin-bottom:14px;
+}
+.st-row{
+  display:flex;align-items:center;gap:12px;padding:13px 14px;
+  border-bottom:1px solid var(--border);cursor:pointer;transition:var(--transition);
+}
+.st-row:last-child{border-bottom:none}
+.st-row:hover{background:var(--card2)}
+.st-row-main{flex:1;min-width:0}
+.st-row-label{font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
+.st-row-sub{font-size:11px;color:var(--text3);margin-top:3px;line-height:1.4}
+.st-select{
+  padding:7px 10px;border:1px solid var(--border);border-radius:8px;
+  background:var(--card2);color:var(--text);font-family:var(--font);font-size:12px;
+  cursor:pointer;outline:none;min-width:130px;
+}
+.st-select:focus{border-color:var(--accent)}
+.st-toggle{
+  width:40px;height:22px;border-radius:11px;background:var(--border);
+  position:relative;transition:var(--transition);flex-shrink:0;cursor:pointer;
+}
+.st-toggle.on{background:var(--accent)}
+.st-toggle-dot{
+  position:absolute;top:2px;left:2px;width:18px;height:18px;
+  border-radius:50%;background:#fff;transition:var(--transition);
+  box-shadow:0 2px 4px rgba(0,0,0,.3);
+}
+.st-toggle.on .st-toggle-dot{left:20px}
+.st-about{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:12px 14px;margin-bottom:14px;
+}
+.st-about-row{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;padding:6px 0;
+}
+.st-about-row:not(:last-child){border-bottom:1px solid var(--border)}
+.st-about-row span:first-child{color:var(--text3)}
+.st-about-row span:last-child{color:var(--text2);font-weight:600;font-family:var(--mono);font-size:11px}
+.st-actions{margin-top:14px}
+.btn-sec{
+  width:100%;padding:11px;border-radius:10px;background:transparent;
+  border:1px solid var(--border);color:var(--text2);font-family:var(--font);
+  font-size:13px;font-weight:600;cursor:pointer;transition:var(--transition);
+}
+.btn-sec:hover{background:var(--card);color:var(--text)}
 
 /* ═══ MAP OVERRIDES ═══ */
 .leaflet-control-zoom{margin:14px 14px 0 0!important}
@@ -823,6 +898,10 @@ body.map-night .fab:not(.primary) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
     <span class="rail-tt">AI Chat</span>
   </button>
+  <button class="rail-item" id="railSettings" onclick="navTo('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span class="rail-tt">Settings</span>
+  </button>
   <div class="rail-spacer"></div>
   <div class="rail-avatar" id="railAvatar" onclick="navTo('profile')">?</div>
 </div>
@@ -921,6 +1000,20 @@ body.map-night .fab:not(.primary) {
     <button class="ph-close" onclick="closeSidePanel()">✕</button>
   </div>
   <div class="panel-scroll pb" id="profileBody">
+    <div class="loading-state"><div class="loading-spinner"></div><div class="loading-txt">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ═══ SETTINGS SIDE PANEL ═══ -->
+<div class="side-panel" id="panelSettings">
+  <div class="ph-hd">
+    <div style="flex:1">
+      <div class="ph-title">Settings</div>
+      <div class="ph-sub">App preferences</div>
+    </div>
+    <button class="ph-close" onclick="closeSidePanel()">✕</button>
+  </div>
+  <div class="panel-scroll pb" id="settingsBody">
     <div class="loading-state"><div class="loading-spinner"></div><div class="loading-txt">Loading…</div></div>
   </div>
 </div>
@@ -1301,7 +1394,10 @@ function plMe() {
   }).addTo(map).bindPopup('<b style="color:#22C55E">You</b>');
 }
 
-spawn(14); plMe(); setInterval(move, 1400);
+sO = !!getSettings().showSimUsers;
+if (sO) spawn(14);
+plMe();
+setInterval(move, 1400);
 
 map.on('zoomend', function() {
   const z = map.getZoom();
@@ -1628,6 +1724,7 @@ function navTo(tab) {
   if (tab === 'impact')    document.getElementById('railImpact').classList.add('active');
   if (tab === 'leaderboard') document.getElementById('railLB').classList.add('active');
   if (tab === 'chat')      document.getElementById('railChat').classList.add('active');
+  if (tab === 'settings')  document.getElementById('railSettings').classList.add('active');
 
   // Hide all side panels
   document.querySelectorAll('.side-panel').forEach(p => p.classList.remove('open'));
@@ -1637,6 +1734,7 @@ function navTo(tab) {
   if (tab === 'leaderboard'){ document.getElementById('panelLB').classList.add('open'); loadLeaderboard(); }
   if (tab === 'chat')       { document.getElementById('panelChat').classList.add('open'); }
   if (tab === 'profile')    { document.getElementById('panelProfile').classList.add('open'); loadProfile(); }
+  if (tab === 'settings')   { document.getElementById('panelSettings').classList.add('open'); loadSettings(); }
 }
 function closeSidePanel() {
   document.querySelectorAll('.side-panel').forEach(p => p.classList.remove('open'));
@@ -1781,7 +1879,7 @@ async function getRoute() {
         departure_time: getAutoTime(),
         vehicle_type: VM[J.mode] || 'car',
         priority: PM[J.mode] || 'balanced',
-        language: 'en',
+        language: getSettings().language || 'en',
       })
     });
     const data = await r.json();
@@ -1926,6 +2024,21 @@ function buildRouteVariants(baseOpt, paths, baseDistKm) {
       sharesPath: false, 
     });
   }
+
+  // Demo mode: inject a simulated incident on the fastest variant.
+  // Adds 35–60% to its travel time and recalculates ETA, so the user can
+  // demo how EcoFlow responds to sudden traffic events.
+  if (getSettings().simIncidents && out.length > 0) {
+    const v = out[0];
+    const delay = 1.35 + Math.random() * 0.25;
+    v.time_mins = Math.round(v.time_mins * delay);
+    v.eco_score = Math.max(0, v.eco_score - 10);
+    v.incident = true;
+    v.variantDesc = 'Incident ahead · expect delays';
+    const eta = new Date(Date.now() + v.time_mins * 60000);
+    v.eta = `${String(eta.getHours()).padStart(2,'0')}:${String(eta.getMinutes()).padStart(2,'0')}`;
+  }
+
   return out;
 }
 
@@ -1935,8 +2048,12 @@ function renderRouteOptions(data, variants, paths) {
   const pf = document.getElementById('panelFooterBar');
   const j = data.journey;
 
-  variants.forEach((v, i) => { v.isBest = (i === 0); });
-  J.selectedRoute = variants[0];
+  // First non-incident variant is Recommended; if the fastest has an incident,
+  // promote the next one so we never recommend a known-delayed route.
+  const bestIdx = variants.findIndex(v => !v.incident);
+  const bi = bestIdx >= 0 ? bestIdx : 0;
+  variants.forEach((v, i) => { v.isBest = (i === bi); });
+  J.selectedRoute = variants[bi];
 
   const ALL_MODES = ['Drive', 'Carpool', 'Motorcycle', 'Grab / E-hailing', 'Bus / RapidKL', 'MRT / LRT', 'Park & Ride', 'Cycling', 'Walking'];
   
@@ -2035,13 +2152,20 @@ function renderVariantCard(v) {
   const isDriving = ['Drive','Carpool','Motorcycle','Grab / E-hailing','Park & Ride'].includes(v.mode);
   const sel = J.selectedRoute && J.selectedRoute.idx === v.idx ? 'selected' : '';
 
+  const incidentStrip = v.incident ? `
+    <div style="background:var(--red-bg);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:var(--red);font-weight:600;display:flex;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Incident on route · expect delays
+    </div>` : '';
+
   return `<div class="rcard ${sel} ${v.isBest?'best':''}" data-vidx="${v.idx}" onclick="selectVariant(${v.idx})">
-    <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:${col};border-radius:4px 0 0 4px;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:${v.incident?'#EF4444':col};border-radius:4px 0 0 4px;"></div>
+    ${incidentStrip}
     <div class="rctop">
       <div class="rc-color" style="background:${col}">${v.idx+1}</div>
       <div style="flex:1;min-width:0">
         <div class="rcname">${v.variantName}</div>
-        <div style="font-size:10px;color:var(--text3);font-weight:500;margin-top:1px">${v.variantDesc || ''} · arrives ${v.eta}</div>
+        <div style="font-size:10px;color:${v.incident?'var(--red)':'var(--text3)'};font-weight:500;margin-top:1px">${v.variantDesc || ''} · arrives ${v.eta}</div>
       </div>
       ${v.isBest ? `<span class="rctag">★ Recommended</span>` : ''}
     </div>
@@ -2248,27 +2372,35 @@ function renderNavPreview(v, path) {
   const bot = document.querySelector('#navView .nav-bottom');
   
   // Clean Professional Icon (No low-grade emoji)
-  const iconHtml = iconSized(MODE_ICON_MAP[v.mode] || 'car', 32); 
+  const iconHtml = iconSized(MODE_ICON_MAP[v.mode] || 'car', 30); 
+  const isDriving = ['Drive','Carpool','Motorcycle','Grab / E-hailing','Park & Ride'].includes(v.mode);
 
   top.innerHTML = `
-    <div style="width:54px;height:54px;border-radius:14px;background:${v.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${iconHtml}</div>
+    <div style="width:52px;height:52px;border-radius:12px;background:${v.color};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${iconHtml}</div>
     <div style="flex:1;min-width:0">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:700">Trip Strategy</div>
-      <div style="font-size:16px;font-weight:700;color:var(--text);margin-top:2px;line-height:1.3">${v.variantName} via ${v.mode}</div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;font-weight:700">Route Preview</div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:3px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(C.s.name)} → ${escHtml(C.e.name)}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:3px;font-weight:500">${v.variantName} · ${v.mode} · arrives ${v.eta}</div>
     </div>
-    <button class="nav-mute" onclick="cancelNavPreview()" style="width:40px;height:40px;background:transparent">
+    <button class="nav-mute" onclick="cancelNavPreview()" style="background:transparent" title="Back to routes">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>`;
 
   bot.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
-      <div class="nav-stat"><div class="nav-stat-v">${v.time_mins}<span> min</span></div><div class="nav-stat-l">Time</div></div>
+    <div style="display:grid;grid-template-columns:repeat(${isDriving?4:3},1fr);gap:10px;margin-bottom:14px">
+      <div class="nav-stat"><div class="nav-stat-v">${v.time_mins}<span> min</span></div><div class="nav-stat-l">Duration</div></div>
+      <div class="nav-stat"><div class="nav-stat-v">${v.distance_km}<span> km</span></div><div class="nav-stat-l">Distance</div></div>
       <div class="nav-stat"><div class="nav-stat-v"><span>RM</span>${v.cost_rm}</div><div class="nav-stat-l">Cost</div></div>
       <div class="nav-stat"><div class="nav-stat-v">${v.carbon_kg}<span> kg</span></div><div class="nav-stat-l">CO₂</div></div>
+      ${isDriving ? `<div class="nav-stat"><div class="nav-stat-v">${v.fuel_l}<span> L</span></div><div class="nav-stat-l">Fuel</div></div>` : ''}
     </div>
+    ${v.congestion ? `<div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:12px;font-weight:500">${v.congestion} traffic expected</div>` : ''}
     <div class="nav-actions">
-      <button class="btn-nav" style="flex:1; background:var(--accent); color:#000;" onclick="beginNavSim()">
-        ${ICONS.navStart} Let's Begin
+      <button class="btn-nav" style="flex:1" onclick="beginNavSim()">
+        ${ICONS.navStart} Let's Go
+      </button>
+      <button class="nav-mute" id="navMuteBtn" onclick="toggleMute()" title="Mute voice">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
       </button>
     </div>`;
 }
@@ -2432,6 +2564,8 @@ function navTick() {
              iconEl.style.transition = "transform 0.1s linear";
              iconEl.style.transform = `rotate(${angle}deg)`;
            }
+           // Also stash for updateDirIcon so the nav-top arrow can rotate to match heading
+           navState.prevPos = navState.lastPos;
        }
     }
     navState.lastPos = pos;
@@ -2552,16 +2686,32 @@ function updateNavUI() {
       : '⏸️ Stopped';
   }
 
+  const imperial = getSettings().units === 'imperial';
+
   const distEl = document.getElementById('navNextDist');
   if (distEl) {
-    distEl.innerHTML = nextDist >= 1000
-      ? `${(nextDist/1000).toFixed(1)}<span> km</span>`
-      : `${nextDist}<span> m</span>`;
+    if (imperial) {
+      const ft = nextDist * 3.28084;
+      distEl.innerHTML = ft >= 5280
+        ? `${(ft/5280).toFixed(1)}<span> mi</span>`
+        : `${Math.round(ft)}<span> ft</span>`;
+    } else {
+      distEl.innerHTML = nextDist >= 1000
+        ? `${(nextDist/1000).toFixed(1)}<span> km</span>`
+        : `${nextDist}<span> m</span>`;
+    }
   }
   document.getElementById('navInstr').textContent = nextInstr;
   document.getElementById('navEta').innerHTML = `${etaStr}<span></span>`;
-  document.getElementById('navRemain').innerHTML = `${remainingKm}<span> km</span>`;
-  document.getElementById('navSpeed').innerHTML = `${Math.round(navState.currentKmh)}<span> km/h</span>`;
+  if (imperial) {
+    const mi  = remainingKm * 0.621371;
+    const mph = navState.currentKmh * 0.621371;
+    document.getElementById('navRemain').innerHTML = `${mi.toFixed(2)}<span> mi</span>`;
+    document.getElementById('navSpeed').innerHTML  = `${Math.round(mph)}<span> mph</span>`;
+  } else {
+    document.getElementById('navRemain').innerHTML = `${remainingKm}<span> km</span>`;
+    document.getElementById('navSpeed').innerHTML  = `${Math.round(navState.currentKmh)}<span> km/h</span>`;
+  }
   document.getElementById('navProg').style.width = `${Math.round((navState.distTraveledKm/Math.max(0.01,navState.totalDistKm))*100)}%`;
 
   updateDirIcon(navState.steps[navState.nextStepIdx]);
@@ -2570,20 +2720,41 @@ function updateNavUI() {
 function updateDirIcon(step) {
   const el = document.getElementById('navDirIcon');
   if (!el) return;
+
+  // Determine the base icon: turn-left / turn-right / straight-ahead
   let svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+  let isTurn = false;
   if (step && step.maneuver) {
     const mod = step.maneuver.modifier || '';
     if (mod.includes('left')) {
       svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>`;
+      isTurn = true;
     } else if (mod.includes('right')) {
       svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>`;
+      isTurn = true;
     }
   }
   el.innerHTML = svg;
+
+  // For a "straight ahead" icon, rotate it to match the vehicle's current heading
+  // so the top bar arrow visually aligns with the actual direction of travel.
+  // Turn icons (left/right) stay un-rotated since they indicate the upcoming maneuver.
+  if (!isTurn && navState && navState.lastPos && navState.prevPos) {
+    const dy = navState.lastPos[0] - navState.prevPos[0];
+    const dx = navState.lastPos[1] - navState.prevPos[1];
+    if (Math.abs(dx) > 1e-6 || Math.abs(dy) > 1e-6) {
+      // atan2(dx, dy) in (lon-delta, lat-delta) gives compass bearing in degrees from north
+      const angle = Math.atan2(dx, dy) * 180 / Math.PI;
+      el.style.transform = `rotate(${angle}deg)`;
+    }
+  } else {
+    el.style.transform = 'rotate(0deg)';
+  }
 }
 
 function speak(msg) {
   if (!navState || navState.muted) return;
+  if (!getSettings().voice) return;
   if (!('speechSynthesis' in window)) return;
   try {
     const u = new SpeechSynthesisUtterance(msg);
@@ -3041,6 +3212,125 @@ async function updatePrefs() {
   }
 }
 
+/* ═══════════════════════════════════════════════════════
+   SETTINGS SYSTEM — app-level prefs persisted in localStorage.
+   Coexists with changeThemeSetting() and updatePrefs() (commute preferences).
+   ═══════════════════════════════════════════════════════ */
+function getSettings() {
+  try {
+    return Object.assign({
+      voice: true,              // voice guidance during nav
+      units: 'metric',          // 'metric' | 'imperial'
+      language: 'en',           // 'en' | 'zh' | 'ms' — affects AI replies
+      autoLocate: true,         // ask for geolocation on startup
+      showSimUsers: true,       // decorative moving markers on the map
+      simIncidents: false,      // demo mode: inject traffic incidents
+    }, JSON.parse(localStorage.getItem('ecoflow_settings') || '{}'));
+  } catch (e) {
+    return { voice:true, units:'metric', language:'en',
+             autoLocate:true, showSimUsers:true, simIncidents:false };
+  }
+}
+
+function saveSettings(s) {
+  localStorage.setItem('ecoflow_settings', JSON.stringify(s));
+}
+
+function updateSetting(key, value) {
+  const s = getSettings();
+  s[key] = value;
+  saveSettings(s);
+  // Side-effects
+  if (key === 'showSimUsers') {
+    sO = !!value;
+    if (value) { spawn(14); } else { sU.forEach(u => map.removeLayer(u.m)); sU = []; }
+  }
+  if (key === 'voice' && !value && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function loadSettings() {
+  const s = getSettings();
+  const body = document.getElementById('settingsBody');
+  if (!body) return;
+
+  // Theme preference is stored by the existing changeThemeSetting flow
+  const themeVal = localStorage.getItem('ecoflow_theme') || 'auto';
+
+  const toggleRow = (key, label, sub) => `
+    <div class="st-row" onclick="updateSetting('${key}', !getSettings().${key}); loadSettings();">
+      <div class="st-row-main">
+        <div class="st-row-label">${label}</div>
+        <div class="st-row-sub">${sub}</div>
+      </div>
+      <div class="st-toggle ${s[key] ? 'on' : ''}"><div class="st-toggle-dot"></div></div>
+    </div>`;
+  const selectRow = (key, label, options) => `
+    <div class="st-row">
+      <div class="st-row-main">
+        <div class="st-row-label">${label}</div>
+      </div>
+      <select class="st-select" onchange="updateSetting('${key}', this.value); loadSettings();">
+        ${options.map(o => `<option value="${o.v}" ${s[key]===o.v?'selected':''}>${o.l}</option>`).join('')}
+      </select>
+    </div>`;
+
+  body.innerHTML = `
+    <div class="slabel">Appearance</div>
+    <div class="st-group">
+      <div class="st-row">
+        <div class="st-row-main">
+          <div class="st-row-label">Theme</div>
+          <div class="st-row-sub">Auto follows time of day</div>
+        </div>
+        <select class="st-select" id="prefTheme" onchange="changeThemeSetting()">
+          <option value="auto"  ${themeVal==='auto' ?'selected':''}>Automatic</option>
+          <option value="day"   ${themeVal==='day'  ?'selected':''}>Day (light)</option>
+          <option value="night" ${themeVal==='night'?'selected':''}>Night (dark)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="slabel">Navigation</div>
+    <div class="st-group">
+      ${toggleRow('voice', 'Voice guidance', 'Read turn-by-turn directions out loud')}
+      ${selectRow('units', 'Units', [
+        {v:'metric',   l:'Metric (km, km/h)'},
+        {v:'imperial', l:'Imperial (mi, mph)'},
+      ])}
+    </div>
+
+    <div class="slabel">Language &amp; Region</div>
+    <div class="st-group">
+      ${selectRow('language', 'AI response language', [
+        {v:'en', l:'English'},
+        {v:'zh', l:'中文'},
+        {v:'ms', l:'Bahasa Melayu'},
+      ])}
+    </div>
+
+    <div class="slabel">Map</div>
+    <div class="st-group">
+      ${toggleRow('autoLocate',    'Auto-locate on open',       'Ask for device location at startup')}
+      ${toggleRow('showSimUsers',  'Show nearby travellers',    'Decorative markers of other commuters')}
+      ${toggleRow('simIncidents',  'Simulate traffic incidents','Demo mode — injects random slowdowns')}
+    </div>
+
+    <div class="slabel">About</div>
+    <div class="st-about">
+      <div class="st-about-row"><span>EcoFlow AI</span><span>v4.0</span></div>
+      <div class="st-about-row"><span>Hackathon</span><span>MyAI Future 2026</span></div>
+      <div class="st-about-row"><span>Track</span><span>Green Horizon</span></div>
+      ${USER ? `<div class="st-about-row"><span>Signed in as</span><span>${escHtml(USER.email || USER.name || USER.id)}</span></div>` : ''}
+    </div>
+
+    <div class="st-actions">
+      <button class="btn-sec" onclick="if(confirm('Clear all locally stored data (settings, preferences, session)?')){localStorage.clear();location.reload();}">Reset all data</button>
+    </div>
+  `;
+}
+
 /* ═══ CARPOOL QUICK FAB ═══ */
 function quickCP() {
   if (C.s && C.e) {
@@ -3154,8 +3444,8 @@ function setPOI(lat, lng, name, role) {
     hideAuth();
   }
 
-  // Auto-locate on load (best-effort, no permission prompt loop)
-  if (navigator.geolocation) {
+  // Auto-locate on load (gated by user setting)
+  if (navigator.geolocation && getSettings().autoLocate) {
     navigator.geolocation.getCurrentPosition(pos => {
       meP = [pos.coords.latitude, pos.coords.longitude];
       plMe();
