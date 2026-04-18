@@ -184,6 +184,11 @@ body.map-night .fab:not(.primary) {
   position:fixed;top:12px;left:calc(var(--rail-w) + 12px);z-index:900;
   width:var(--panel-w);
 }
+body.side-panel-open #searchWrap {
+  transform: translateY(-150px); /* 向上弹走 */
+  opacity: 0;
+  pointer-events: none;
+}
 .search-card{
   background:var(--surface);border:1px solid var(--border);
   border-radius:16px;overflow:hidden;
@@ -274,6 +279,13 @@ body.map-night .fab:not(.primary) {
   opacity: 0;
   pointer-events: none; /* 隐藏时不挡住底层点击 */
   transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.3s, top 0.3s ease;
+}
+
+.panel-placeholder {
+  padding: 30px;
+  text-align: center;
+  color: var(--text3);
+  font-style: italic;
 }
 
 #leftPanel.show {
@@ -1356,11 +1368,11 @@ function removeWaypoint(id, event) {
 // them from overlapping when the user adds intermediate stops and the card
 // grows. Called whenever waypoints are added/removed or panel resizes.
 function updateLeftPanelOffset() {
-  const card = document.querySelector('#searchWrap .search-card');
-  if (!card) return;
-  const rect = card.getBoundingClientRect();
-  // searchWrap has top:12px; add card height + 8px gap
-  const top = 12 + Math.round(rect.height) + 8;
+  const wrap = document.getElementById('searchWrap'); // 观察整个搜索容器
+  if (!wrap) return;
+  const rect = wrap.getBoundingClientRect();
+  // 间距设为 wrap 底部 + 12px
+  const top = rect.height + 12 + 12; // 顶部固定位 12 + 高度 + 间隙
   document.documentElement.style.setProperty('--panel-top', top + 'px');
 }
 window.addEventListener('resize', updateLeftPanelOffset);
@@ -1624,6 +1636,13 @@ async function authSubmit() {
     errEl.textContent = error.message;
     errEl.classList.add('show');
   }
+}
+
+function switchMode(newMode) {
+  if (J.mode === newMode) return;
+  J.mode = newMode;
+  showToast(`Switching to ${newMode}...`);
+  getRoute(); // 重新加载路线
 }
 
 /* --- Google Authentication --- */
@@ -1929,10 +1948,22 @@ function hideDropdown() {
 // 在 script 中找到或替换这个函数
 function onSearchFocus(k) {
   _activeSearch = k;
-  // 【修复】：支持 wp1, wp2 等动态 ID
   const inpId = (k === 's') ? 'iStart' : (k === 'e' ? 'iEnd' : k);
   const inp = document.getElementById(inpId);
   if (!inp) return;
+
+  // 强制弹出面板逻辑
+  openPanel(); 
+  if (!C.s || !C.e) {
+    document.getElementById('panelContent').innerHTML = `
+      <div class="empty-state">
+        <div class="es-ico">${iconSized('pin', 32)}</div>
+        <div class="es-title">Planning your route...</div>
+        <div class="es-sub">Please select both <b>Start</b> and <b>Destination</b> to see Eco-Flow options.</div>
+      </div>`;
+    document.getElementById('panelFooterBar').innerHTML = '';
+  }
+
   const v = inp.value.trim();
   if (v.length < 2) {
     renderDefaultSearchList(k);
@@ -2135,20 +2166,18 @@ function selectPlace(placeJsonStr, k) {
 
   // 关键修复：用 try/catch 包住进入下一步的逻辑。即使 getRoute / step 抛错，
   // 也强制打开面板并显示模式选择器，避免"地点已选但 UI 没反应"的卡死。
-  if (C.s && C.e) {
-    try {
-      if (J.mode) {
-        // Already picked a mode — just refresh the route with new stops
-        getRoute();
-      } else {
-        openPanel();
-        step('mode');
-      }
-    } catch(err) {
-      console.error('selectPlace flow error:', err);
-      // Fail-safe: still show the panel so the user isn't stuck
-      try { openPanel(); step('mode'); } catch(e2) {}
-    }
+  openPanel(); 
+  if (!C.s || !C.e) {
+    document.getElementById('panelContent').innerHTML = `
+      <div class="empty-state">
+        <div class="es-ico">${iconSized('pin', 32)}</div>
+        <div class="es-title">Planning your route...</div>
+        <div class="es-sub">Please select both <b>Start</b> and <b>Destination</b> to see Eco-Flow options.</div>
+      </div>`;
+  } else {
+    // 起终点都选好了
+    if (J.mode) { getRoute(); } 
+    else { step('mode'); }
   }
 }
 
@@ -2284,26 +2313,33 @@ function togglePreviewMute() {
 
 /* ─── NAV RAIL ─── */
 function navTo(tab) {
-  // 【关键修复】：点击左侧栏任何按钮时，强制收起 Routes 路线面板！
   closePanel(); 
 
-  // Update rail active state
-  document.querySelectorAll('.rail-item').forEach(n => n.classList.remove('active'));
-  if (tab === 'map')       document.getElementById('railMap').classList.add('active');
-  if (tab === 'impact')    document.getElementById('railImpact').classList.add('active');
-  if (tab === 'leaderboard') document.getElementById('railLB').classList.add('active');
-  if (tab === 'chat')      document.getElementById('railChat').classList.add('active');
-  if (tab === 'settings')  document.getElementById('railSettings').classList.add('active');
+  // 关键：切换 body 的状态来触发 CSS 动画
+  if (tab === 'map') {
+    document.body.classList.remove('side-panel-open');
+  } else {
+    document.body.classList.add('side-panel-open');
+  }
 
-  // Hide all side panels
+  document.querySelectorAll('.rail-item').forEach(n => n.classList.remove('active'));
+  const railEl = document.getElementById('rail' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (railEl) railEl.classList.add('active');
+
   document.querySelectorAll('.side-panel').forEach(p => p.classList.remove('open'));
 
-  if (tab === 'map')          return;
-  if (tab === 'impact')     { document.getElementById('panelImpact').classList.add('open'); loadImpact(); }
-  if (tab === 'leaderboard'){ document.getElementById('panelLB').classList.add('open'); loadLeaderboard(); }
-  if (tab === 'chat')       { document.getElementById('panelChat').classList.add('open'); }
-  if (tab === 'profile')    { document.getElementById('panelProfile').classList.add('open'); loadProfile(); }
-  if (tab === 'settings')   { document.getElementById('panelSettings').classList.add('open'); loadSettings(); }
+  if (tab === 'map') return;
+  
+  // 打开对应的面板
+  const targetPanel = document.getElementById('panel' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (targetPanel) {
+    targetPanel.classList.add('open');
+    // 根据不同标签加载数据
+    if (tab === 'impact') loadImpact();
+    if (tab === 'leaderboard') loadLeaderboard();
+    if (tab === 'profile') loadProfile();
+    if (tab === 'settings') loadSettings();
+  }
 }
 
 function closeSidePanel() {

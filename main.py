@@ -962,6 +962,26 @@ def find_carpool(req: CarpoolMatchRequest):
     }
 
 
+@app.get("/api/v1/eco-forecast/{user_id}", tags=["Impact"])
+def eco_forecast(user_id: str):
+    """Predicts yearly impact based on current user behavior."""
+    doc = db.collection("user_stats").document(user_id).get()
+    if not doc.exists:
+        return {"message": "Need more data"}
+    
+    stats = doc.to_dict()
+    saved = stats.get("total_carbon_saved", 0)
+    trips = stats.get("total_trips", 1)
+    
+    # Simple projection: If user keeps this up for a year (avg 22 working days/month)
+    yearly_projection = (saved / trips) * 22 * 12
+    
+    return {
+        "projected_yearly_savings_kg": round(yearly_projection, 2),
+        "trees_equivalent": round(yearly_projection / 21.77, 1),
+        "eco_rank": "Sapling" if yearly_projection < 50 else "Forest Guardian"
+    }
+
 # ── Full AI Analysis (核心功能：综合比较所有路线，AI给最佳建议) ──
 class FullAnalysisRequest(BaseModel):
     user_id:        str
