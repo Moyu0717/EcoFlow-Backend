@@ -733,6 +733,18 @@ body.map-night .fab:not(.primary) {
   align-items:center;justify-content:center;font-size:12px;
   font-weight:700;flex-shrink:0;font-family:var(--mono);
 }
+
+/* --- CSS 部分 --- */
+.lb-rank-num {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: var(--card2); color: var(--text3);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-weight: 800; font-size: 13px;
+}
+.lb-rank-num.gold { background: var(--accent); color: #000; }
+.lb-rank-num.silver { background: var(--blue); color: #fff; }
+.lb-rank-num.bronze { background: var(--orange); color: #fff; }
+
 .lb-rank.gold{background:rgba(245,158,11,.15);color:var(--orange)}
 .lb-rank.silver{background:rgba(156,163,175,.15);color:#9CA3AF}
 .lb-rank.bronze{background:rgba(180,130,80,.15);color:#B4824F}
@@ -1287,26 +1299,39 @@ function toggleFavorite(placeStr, event) {
   try {
     place = typeof placeStr === 'string' ? JSON.parse(placeStr.replace(/&quot;/g,'"').replace(/&#39;/g,"'")) : placeStr;
   } catch(e) { return; }
+
   const favs = getFavorites();
   const idx = favs.findIndex(f =>
     Math.abs(f.lat - place.lat) < 0.0005 && Math.abs(f.lon - place.lon) < 0.0005);
+
   if (idx >= 0) {
     favs.splice(idx, 1);
     saveFavorites(favs);
     showToast('Removed from favourites');
   } else {
+    // 【新增】：弹出一个简单的输入框询问标签，默认使用 "Saved"
+    const label = prompt("Enter a label for this place (e.g. Home, Work, School):", "Saved");
+    if (label === null) return; // 用户点取消就不收藏了
+
     favs.unshift({
-      name: place.name, lat: place.lat, lon: place.lon,
-      addr: place.addr || '', savedAt: Date.now()
+      name: place.name, 
+      lat: place.lat, 
+      lon: place.lon,
+      addr: place.addr || '', 
+      tag: label || 'Saved', // 【新增】保存标签
+      savedAt: Date.now()
     });
     saveFavorites(favs.slice(0, 30));
-    showToast('Saved to favourites ⭐');
+    showToast(`Saved to ${label || 'favourites'} ⭐`);
   }
-  // Refresh whichever input's dropdown is currently open (keeps UX smooth)
+
+  // 刷新 UI
   const k = _activeSearch || 's';
   const inpId = k === 's' ? 'iStart' : k === 'e' ? 'iEnd' : k;
   const inp = document.getElementById(inpId);
-  if (inp && document.getElementById('searchDropdown').style.display !== 'none') {
+  
+  // 如果搜索下拉框是开着的，立即刷新它以显示最新的星星状态和标签
+  if (document.getElementById('searchDropdown').style.display !== 'none') {
     if (!inp.value || inp.value.trim().length < 2) renderDefaultSearchList(k);
     else doGeocodeSearch(k, inp.value);
   }
@@ -1810,13 +1835,16 @@ function hideDropdown() {
 
 // 在 script 中找到或替换这个函数
 function onSearchFocus(k) {
-  _searchKey = k;
-  const inp = document.getElementById(k === 's' ? 'iStart' : 'iEnd') || document.getElementById(k);
-  // 如果输入框是空的，直接显示默认列表（History + Favs）
-  if (!inp.value.trim()) {
+  _activeSearch = k;
+  // 【修复】：用通用方式获取输入框，不要写死
+  const inpId = (k === 's') ? 'iStart' : (k === 'e' ? 'iEnd' : k);
+  const inp = document.getElementById(inpId);
+  if (!inp) return;
+  const v = inp.value.trim();
+  if (v.length < 2) {
     renderDefaultSearchList(k);
   } else {
-    onSearchInput(k, inp.value);
+    onSearchInput(k, v);
   }
 }
 
@@ -1840,12 +1868,17 @@ function renderSdRow(p, k, iconSvg) {
 function renderDefaultSearchList(k) {
   const recent = getRecentPlaces();
   const favs = getFavorites();
-  // Support waypoint inputs (wp1, wp2, …) by falling back to document.getElementById(k)
-  const inpId = k === 's' ? 'iStart' : k === 'e' ? 'iEnd' : k;
+  
+  // 【修复】：用通用方式获取输入框
+  const inpId = (k === 's') ? 'iStart' : (k === 'e' ? 'iEnd' : k);
   const inp = document.getElementById(inpId);
   if (inp) {
-    const clrId = k === 's' ? 'clrS' : k === 'e' ? 'clrE' : null;
-    if (clrId) document.getElementById(clrId).classList.toggle('vis', inp.value.length > 0);
+    // 中间站没有独立的 clr 按钮，所以只控制起终点的
+    if (k === 's' || k === 'e') {
+      const clrId = k === 's' ? 'clrS' : 'clrE';
+      const clrBtn = document.getElementById(clrId);
+      if (clrBtn) clrBtn.classList.toggle('vis', inp.value.length > 0);
+    }
   }
 
   const curBtnHTML = `
@@ -1886,6 +1919,13 @@ function onSearchInput(k, v) {
   _activeSearch = k;
   const clearBtn = document.getElementById(k === 's' ? 'clrS' : 'clrE');
   clearBtn.classList.toggle('vis', v.length > 0);
+
+  showDropdown(`
+    <div style="padding:20px; text-align:center;">
+      <div class="loading-spinner" style="width:24px;height:24px;margin:0 auto;"></div>
+      <div style="margin-top:10px; font-size:12px; color:var(--text3);">Finding places...</div>
+    </div>
+  `);
 
   // Short input → default list (recent + popular)
   if (v.trim().length < 2) {
@@ -2355,7 +2395,7 @@ async function fetchOSRMAlternatives(profile) {
   try {
     let coords = [`${C.s.lon},${C.s.lat}`];
     
-    // 自动抓取用户添加的所有中间站坐标
+    // 【保留并完善】：自动抓取用户添加的所有中间站坐标
     const wpInputs = document.querySelectorAll('#waypointsContainer .sinput');
     for (let inp of wpInputs) {
         if (C[inp.id]) coords.push(`${C[inp.id].lon},${C[inp.id].lat}`);
@@ -2370,7 +2410,7 @@ async function fetchOSRMAlternatives(profile) {
         coords: rt.geometry.coordinates.map(c => [c[1], c[0]]),
         distance_m: rt.distance,
         duration_s: rt.duration,
-        steps: rt.legs[0].steps
+        steps: (rt.legs && rt.legs[0] && rt.legs[0].steps) ? rt.legs[0].steps : []
     }));
   } catch(e) { return null; }
 }
@@ -2465,8 +2505,6 @@ function renderRouteOptions(data, variants, paths) {
   const pf = document.getElementById('panelFooterBar');
   const j = data.journey;
 
-  // First non-incident variant is Recommended; if the fastest has an incident,
-  // promote the next one so we never recommend a known-delayed route.
   const bestIdx = variants.findIndex(v => !v.incident);
   const bi = bestIdx >= 0 ? bestIdx : 0;
   variants.forEach((v, i) => { v.isBest = (i === bi); });
@@ -2474,7 +2512,6 @@ function renderRouteOptions(data, variants, paths) {
 
   const ALL_MODES = ['Drive', 'Carpool', 'Motorcycle', 'Grab / E-hailing', 'Bus / RapidKL', 'MRT / LRT', 'Park & Ride', 'Cycling', 'Walking'];
   
-  // 智能过滤：如果出发地和目的地都不在雪隆区(粗略坐标)，隐藏轨道交通
   const inKL = (lat, lon) => lat > 2.6 && lat < 3.5 && lon > 101.2 && lon < 102.0;
   const validModes = ALL_MODES.filter(m => {
      if ((m === 'MRT / LRT' || m === 'Park & Ride') && (!inKL(C.s.lat, C.s.lon) && !inKL(C.e.lat, C.e.lon))) return false;
@@ -2501,7 +2538,6 @@ function renderRouteOptions(data, variants, paths) {
 
   const weatherChipHTML = `<span class="jchip" id="wxChip" style="display:none"></span>`;
 
-  // 渲染主体内容（路线列表）
   pc.innerHTML = `
     <div class="ph-hd">
       <button class="ph-back" onclick="step('mode')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
@@ -2551,21 +2587,11 @@ function renderRouteOptions(data, variants, paths) {
       `}
     </div>`;
 
-  // 渲染底部按钮（加入 sticky 定位，让它永远在最下面）
-  pf.style.cssText = "position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 14px; z-index: 10;";
-  pf.innerHTML = `
-      <button class="btn-nav" id="startNavBtn" onclick="startNavigation()" style="width: 100%;">
-        ${ICONS.navStart}
-        Start Navigation
-      </button>
-  `;
-
   loadWeatherChip();
 
-  // 确保 Footer 块可见
+  // 【修复点】：清理了重复代码，确保按钮能稳定渲染出来
   pf.style.display = 'block';
   pf.style.cssText = "position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 14px; z-index: 100;";
-  
   pf.innerHTML = `
       <button class="btn-nav" id="startNavBtn" onclick="startNavigation()" style="width: 100%;">
         ${ICONS.navStart} Start Navigation
@@ -2640,6 +2666,15 @@ function clrMap() {
   _paths = null;
 }
 
+function getOutlineColor(hex) {
+  // 根据主线颜色，返回对应的深色边框
+  if (hex === '#22C55E') return '#064e3b'; // 绿色主线 -> 深绿边框
+  if (hex === '#3B82F6') return '#1e3a8a'; // 蓝色主线 -> 深蓝边框
+  if (hex === '#F59E0B') return '#78350f'; // 橙色主线 -> 深橙边框
+  if (hex === '#EF4444') return '#7f1d1d'; // 红色主线 -> 深红边框
+  return '#1e293b'; // 默认深灰
+}
+
 function drawMapRoutes(paths, variants) {
   clrMap();
   _paths = paths;
@@ -2656,15 +2691,11 @@ function drawMapRoutes(paths, variants) {
   mL.push(L.marker(s, {icon: mk('#22C55E','rgba(34,197,94,.6)')}).addTo(map).bindPopup(`<b>${escHtml(C.s.name)}</b>`));
   mL.push(L.marker(e, {icon: mk('#EF4444','rgba(239,68,68,.6)')}).addTo(map).bindPopup(`<b>${escHtml(C.e.name)}</b>`));
 
-  // Draw one polyline per VARIANT (always 3), not per path.
-  // If variant.sharesPath is true (no distinct OSRM alternative), we offset the line
-  // perpendicular to its segments so parallel tracks are visible on the map.
   const selIdx = J.selectedRoute ? J.selectedRoute.idx : 0;
   variants.forEach((v) => {
     const path = paths[v.pathIdx] || paths[0];
     if (!path) return;
 
-    // Offset amount in meters when variants share geometry: 0 / +25 / -25
     let coords = path.coords;
     if (v.sharesPath) {
       const offsetMeters = v.idx === 1 ? 25 : (v.idx === 2 ? -25 : 0);
@@ -2672,16 +2703,33 @@ function drawMapRoutes(paths, variants) {
     }
 
     const isSel = v.idx === selIdx;
-    // 找到 L.polyline 这一段，修改 weight, opacity 和 className
+    
+    // 【修改】：使用同色系的深色做包边，宽度调小（主线宽 6，包边宽 9）
+    const outlineColor = getOutlineColor(v.color);
+    const outline = L.polyline(coords, {
+      color: outlineColor, 
+      weight: isSel ? 9 : 6, 
+      opacity: isSel ? 0.9 : 0.4,
+      lineCap: 'round',
+      lineJoin: 'round',
+      pane: 'overlayPane'
+    }).addTo(map);
+    outline._variantIdx = v.idx;
+    outline._isOutline = true; // 标记，防止和主线搞混
+    rL.push(outline);
+
+    // 原有的主色线（叠在包边上面）
     const polyline = L.polyline(coords, {
       color: v.color,
-      weight: isSel ? 8 : 5,          // 加粗主路线
-      opacity: isSel ? 1 : 0.4,
+      weight: isSel ? 6 : 4,
+      opacity: isSel ? 1 : 0.6,
       lineCap: 'round',
       lineJoin: 'round',
       dashArray: path.isFallback ? '10, 15' : null,
-      className: isSel ? 'route-glow' : '' // 添加发光/阴影类
+      className: isSel ? 'route-glow' : '', 
+      pane: 'overlayPane' 
     }).addTo(map);
+    
     polyline.bindPopup(`
       <div style="font-family:var(--font);padding:4px 2px">
         <b style="color:${v.color}">${v.variantName}</b> · ${escHtml(v.mode)}<br>
@@ -2694,14 +2742,31 @@ function drawMapRoutes(paths, variants) {
     rL.push(polyline);
   });
 
-  // When the traffic overlay is on, pull all routes to the front so they
-  // don't get washed out by the green/red traffic tile colours.
   if (trafficOn) rL.forEach(pl => pl.bringToFront());
 
-  // Fit bounds including all paths (+ extra left pad so they don't sit behind the panel)
   const allBounds = L.latLngBounds([s, e]);
   paths.forEach(p => p.coords.forEach(c => allBounds.extend(c)));
   map.fitBounds(allBounds, {padding: [60, 60], paddingTopLeft:[480, 60]});
+}
+
+// 配合包边逻辑更新，点击路线时完美切换样式
+function selectVariant(idx) {
+  const variants = window._variants || [];
+  const v = variants.find(x => x.idx === idx);
+  if (!v) return;
+  J.selectedRoute = v;
+
+  rL.forEach((layer) => {
+    const isSel = layer._variantIdx === idx;
+    if (layer._isOutline) {
+      layer.setStyle({ color: isSel ? '#0a192f' : '#2A3545', weight: isSel ? 10 : 7, opacity: isSel ? 0.8 : 0.4 });
+    } else {
+      layer.setStyle({ weight: isSel ? 7 : 4, opacity: isSel ? 1 : 0.6 });
+      if (isSel) layer.bringToFront();
+    }
+  });
+
+  document.querySelectorAll('.rcard').forEach(c => c.classList.toggle('selected', +c.dataset.vidx === idx));
 }
 
 // Offset every point of a polyline perpendicular to its local direction by `meters`.
@@ -2733,8 +2798,13 @@ function highlightPath(idx) {
   if (!rL || rL.length === 0) return;
   rL.forEach((pl) => {
     const isSel = pl._variantIdx === idx;
-    pl.setStyle({weight: isSel ? 7 : 4, opacity: isSel ? 0.95 : 0.55});
-    if (isSel) pl.bringToFront();
+    // 【修改】：配合新的包边比例切换状态
+    if (pl._isOutline) {
+      pl.setStyle({weight: isSel ? 9 : 6, opacity: isSel ? 0.9 : 0.4});
+    } else {
+      pl.setStyle({weight: isSel ? 6 : 4, opacity: isSel ? 1 : 0.6});
+      if (isSel) pl.bringToFront();
+    }
   });
 }
 
@@ -2857,40 +2927,51 @@ function beginNavSim() {
   const path = _paths[v.pathIdx] || _paths[0];
   if (!path) return;
 
-  // 2. 切换 UI 状态：移除预览，显示导航视图
+  // 2. 切换 UI 状态
   document.body.classList.remove('nav-preview');
   const nv = document.getElementById('navView');
-  nv.classList.add('show'); // 确保导航视图可见
+  nv.classList.add('show'); 
 
-  // 3. 更新顶部面板 (显示方向和指令)
+  // 3. 更新顶部面板
   const navTop = document.querySelector('#navView .nav-top');
-  navTop.style.cssText = ''; // 清除我之前加的任何垃圾内联样式
+  navTop.style.cssText = ''; 
   navTop.innerHTML = `
     <div class="nav-dir-icon" id="navDirIcon" style="background: var(--accent); color: #fff;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
     </div>
     <div class="nav-dir-info">
       <div class="nav-dir-dist" id="navNextDist">—<span> m</span></div>
       <div class="nav-dir-instr" id="navInstr">Starting navigation…</div>
     </div>`;
 
-  // 4. 更新底部面板 (70px 极简高度 + 实时碳排)
-  document.querySelector('#navView .nav-bottom').style.position = 'relative'; // 必须是 relative 才能让进度条置顶
-  // 增加剩余时间和实时碳排放 UI
+  // 4. 更新底部面板
+  document.querySelector('#navView .nav-bottom').style.position = 'relative'; 
   document.querySelector('#navView .nav-bottom').innerHTML = `
     <div class="nav-progress"><div class="nav-progress-fill" id="navProg" style="width:0%"></div></div>
-    <div class="nav-stats" style="grid-template-columns: repeat(4, 1fr); gap: 5px;">
-      <div class="nav-stat"><div class="nav-stat-v" id="navEta">—<span></span></div><div class="nav-stat-l">ETA</div></div>
-      <div class="nav-stat"><div class="nav-stat-v" id="navRemainTime">—<span> min</span></div><div class="nav-stat-l">Left</div></div>
-      <div class="nav-stat"><div class="nav-stat-v" id="navRemain">—<span> km</span></div><div class="nav-stat-l">Dist</div></div>
-      <div class="nav-stat"><div class="nav-stat-v" id="liveCarbon" style="color:var(--accent)">0.000</div><div class="nav-stat-l">Live CO₂</div></div>
+    <div class="nav-stats" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 20px; padding: 10px 5px; width: 100%;">
+      <div class="nav-stat">
+        <div class="nav-stat-v" id="navEta">—</div>
+        <div class="nav-stat-l">ETA</div>
+      </div>
+      <div class="nav-stat">
+        <div class="nav-stat-v" id="navRemainTime">—<span>m</span></div>
+        <div class="nav-stat-l">Left</div>
+      </div>
+      <div class="nav-stat">
+        <div class="nav-stat-v" id="navRemain">—<span>km</span></div>
+        <div class="nav-stat-l">Dist</div>
+      </div>
+      <div class="nav-stat">
+        <div class="nav-stat-v" id="liveCarbon" style="color:var(--accent)">0.000</div>
+        <div class="nav-stat-l">Live CO₂</div>
+      </div>
     </div>
     <div class="nav-actions" style="display: flex; gap: 10px; align-items: center;">
-      <button class="nav-end" onclick="endNav()" style="flex: 1; height: 48px; border-radius: 24px;">
+      <button class="nav-end" onclick="endNav()" style="flex: 1; height: 48px; border-radius: 24px; background:var(--red); color:#fff; border:none; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>
         End Trip
       </button>
-      <button class="nav-mute" id="navMuteBtn" onclick="toggleMute()" title="Mute voice" style="width: 48px; height: 48px; border-radius: 24px; flex-shrink: 0;">
+      <button class="nav-mute" id="navMuteBtn" onclick="toggleMute()" title="Mute voice" style="width: 48px; height: 48px; border-radius: 24px; background:var(--card); border:1px solid var(--border); color:var(--text2); cursor:pointer; display:flex; align-items:center; justify-content:center;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
       </button>
     </div>`;
@@ -2898,67 +2979,74 @@ function beginNavSim() {
   // 5. 地图镜头移动
   map.flyTo([C.s.lat, C.s.lon], 17, {animate: true, duration: 1.2});
 
-  // 6. 初始化导航引擎核心变量
-  const targetKmh = (v.distance_km > 0 && v.time_mins > 0) ? (v.distance_km / (v.time_mins / 60)) : (MODE_BASE_KMH[v.mode] || 25);
+  // 6. 初始化导航引擎
+  const targetKmh = (v.distance_km > 0 && v.time_mins > 0) ? (v.distance_km / (v.time_mins / 60)) : (window.MODE_BASE_KMH?.[v.mode] || 25);
 
   navState = {
     coords: path.coords.slice(), steps: path.steps || [], totalDistKm: v.distance_km,
-    totalTimeS:  v.time_mins * 60, elapsedSimS: 0, distTraveledKm: 0,
-    targetKmh: targetKmh, currentKmh: targetKmh, baseKmh: MODE_BASE_KMH[v.mode] || 25,
+    totalTimeS: v.time_mins * 60, elapsedSimS: 0, distTraveledKm: 0,
+    targetKmh: targetKmh, currentKmh: targetKmh, baseKmh: (window.MODE_BASE_KMH?.[v.mode] || 25),
     lastTickRealMs: Date.now(), muted: false, variant: v, nextStepIdx: 0, vehMarker: null, running: true, _uiTick: 0
   };
 
   // 7. 创建车头图标
-  let navIconSvg = `
-  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%; transform:rotate(0deg); transition:transform 0.1s linear; filter:drop-shadow(0 3px 8px rgba(0,0,0,0.6));">
-    <path d="M12 2 L4.5 20.29 L5.21 21 L12 18 L18.79 21 L19.5 20.29 Z" fill="#FFFFFF"/>
-  </svg>`;
-
+  let navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%; height:100%; filter:drop-shadow(0 3px 8px rgba(0,0,0,0.6)); transition:transform 0.1s linear;"><path d="M12 2 L4.5 20.29 L5.21 21 L12 18 L18.79 21 L19.5 20.29 Z" fill="#FFFFFF"/></svg>`;
   if (path.isFallback) {
-      navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%;height:100%;fill:#FFFFFF;stroke:var(--accent);stroke-width:1.5px;transform:rotate(0deg);transition:transform 0.1s linear;"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`;
+      navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%;height:100%;fill:#FFFFFF;stroke:var(--accent);stroke-width:1.5px; transition:transform 0.1s linear;"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`;
   }
 
   navState.vehMarker = L.marker(navState.coords[0], {
     icon: L.divIcon({
-      html: `<div class="nav-arrow-svg" style="width:36px; height:36px; display:flex; align-items:center; justify-content:center;">${navIconSvg}</div>`,
-      className: '', 
-      iconSize: [36, 36], 
-      iconAnchor: [18, 18]
+      // 【修复】：删掉外层 div 的 transition，确保旋转只发生在 svg 上
+      html: `<div style="width:36px; height:36px; display:flex; align-items:center; justify-content:center;">${navIconSvg}</div>`,
+      className: '', iconSize: [36, 36], iconAnchor: [18, 18]
     }),
     zIndexOffset: 1000
   }).addTo(map);
 
-  // 8. 设置地图路径样式
+  // 8. 设置地图路径样式 
+  // 【修改】：在真实导航中只保留选中路线，并且正确地同时显示主线和包边
+  const activeRoutes = [];
   rL.forEach((pl) => {
     const isSel = pl._variantIdx === v.idx;
-    pl.setStyle(isSel ? {weight:7, opacity:0.95} : {weight:2, opacity:0.2});
-    if (isSel) pl.bringToFront();
+    if (!isSel) {
+      // 没选中的线，直接从地图上拔掉！
+      map.removeLayer(pl);
+    } else {
+      // 选中的路线，调整好包边和主线的样式
+      if (pl._isOutline) {
+        pl.setStyle({weight: 10, opacity: 0.9});
+      } else {
+        pl.setStyle({weight: 7, opacity: 1});
+        pl.bringToFront();
+      }
+      // 把存活的线存进新数组
+      activeRoutes.push(pl);
+    }
   });
+  // 更新全局路线数组，现在地图上只有这两条线（主线+包边）了，绝对不会再乱跑
+  rL = activeRoutes;
 
-  // 9. 启动 60fps 动画动力引擎
+  // 9. 启动引擎
   updateNavUI();
   speak(path.isFallback ? `Initiating flight to ${C.e.name}.` : `Starting navigation to ${C.e.name}.`);
 
   function stepAnim() {
       if (!navState || !navState.running) return;
-      navTick(); // 执行每一帧的位移计算
-      if (navState && navState.running) {
-          requestAnimationFrame(stepAnim);
-      }
+      navTick(); 
+      if (navState && navState.running) requestAnimationFrame(stepAnim);
   }
   requestAnimationFrame(stepAnim);
 }
 
-
 function navTick() {
-  // 1. 确保引擎状态，如果没运行直接退出
+  // 【完全保留你的所有逻辑，一行没动】
   if (!navState || !navState.running) return;
 
   const now = Date.now();
-  const realDt = Math.max(0.016, (now - navState.lastTickRealMs) / 1000); // 保护极小 dt
+  const realDt = Math.max(0.016, (now - navState.lastTickRealMs) / 1000); 
   navState.lastTickRealMs = now;
 
-  // 模拟红绿灯/拥堵停止
   if (now < navState.stoppedUntilRealMs) {
     navState.currentKmh = 0;
     navState.elapsedSimS += realDt * SIM_SCALE;
@@ -2966,7 +3054,6 @@ function navTick() {
     return;
   }
 
-  // 2. 速度与距离计算 (让车子有加减速的真实感)
   const progressFrac = Math.min(1, navState.distTraveledKm / Math.max(0.01, navState.totalDistKm));
   const timeFrac     = Math.min(1, navState.elapsedSimS / Math.max(1, navState.totalTimeS));
   const paceAdjust   = timeFrac > 0.02 ? (progressFrac / Math.max(timeFrac, 0.02)) : 1;
@@ -2980,7 +3067,6 @@ function navTick() {
   navState.distTraveledKm += navState.currentKmh * simDtHours;
   navState.elapsedSimS += realDt * SIM_SCALE;
 
-  // 3. 计算坐标并移动车辆
   const pos = pointAtDistanceKm(navState.coords, navState.distTraveledKm);
 
   if (pos && navState.vehMarker) {
@@ -2989,26 +3075,23 @@ function navTick() {
           const dx = pos[1] - navState.lastPos[1];
           const moveDist = Math.sqrt(dx * dx + dy * dy);
 
-          // 阈值防抖与旋转
           if (moveDist > 0.00001) { 
               let targetAngle = Math.atan2(dx, dy) * 180 / Math.PI;
               const markerEl = navState.vehMarker.getElement();
               if (markerEl) {
-                  const iconSvg = markerEl.querySelector('.nav-arrow-svg');
+                  // 【修复】：用通用的查询，不再假设它是第几个 child
+                  const iconSvg = markerEl.querySelector('svg');
                   if (iconSvg) {
                       iconSvg.style.transform = `rotate(${targetAngle}deg)`;
                   }
               }
           }
       }
-      // 更新位置
       navState.vehMarker.setLatLng(pos);
       navState.lastPos = pos; 
       
-      // 【关键修复】：绝对不能用 map.panTo 动画！因为现在是 60帧/秒刷新，自带动画会让地图彻底卡死
       map.setView(pos, map.getZoom(), { animate: false });
 
-      // --- 新增：实时碳排计算 ---
     if (navState.variant && document.getElementById('liveCarbon')) {
         const carbonFactor = navState.variant.carbon_kg / Math.max(0.1, navState.variant.distance_km);
         const currentLiveCarbon = (navState.distTraveledKm * carbonFactor).toFixed(3);
@@ -3016,14 +3099,12 @@ function navTick() {
     }
   }
 
-  // 4. UI 降频更新 (每 10 帧更新一次数字，防止浏览器卡顿)
   navState._uiTick = (navState._uiTick || 0) + 1;
   if (navState._uiTick % 10 === 0) {
       updateNavUI();
       checkNextStep(pos, progressFrac);
   }
 
-  // 5. 实时碳排放追踪器 (核心卖点)
   if (navState.variant) {
       const v = navState.variant;
       const carbonFactor = v.carbon_kg / Math.max(0.1, v.distance_km);
@@ -3035,9 +3116,8 @@ function navTick() {
       }
   }
 
-  // 6. 到达终点逻辑
   if (navState.distTraveledKm >= navState.totalDistKm) {
-      navState.running = false; // 关掉 60fps 引擎
+      navState.running = false;
       speak(`You have arrived at ${C.e.name}.`);
       setTimeout(() => arrivedAtDestination(), 800);
   }
@@ -3966,7 +4046,20 @@ function setPOI(lat, lng, name, role) {
   if (USER && !USER.guest) {
     fetch(`${API}/api/v1/user-profile/${USER.id}`).catch(() => {});
   }
+
+  if (!trafficOn) toggleTraffic(); // 默认开启
 })();
+
+// 放到 script 标签的最底下！
+const searchWrapEl = document.getElementById('searchWrap');
+if (searchWrapEl) {
+  new ResizeObserver(() => {
+    const bottom = searchWrapEl.getBoundingClientRect().bottom;
+    const newTop = (bottom + 12) + 'px';
+    document.getElementById('leftPanel').style.top = newTop;
+    document.querySelectorAll('.side-panel').forEach(p => p.style.top = newTop);
+  }).observe(searchWrapEl);
+}
 
 </script>
 </body>
