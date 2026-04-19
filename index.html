@@ -1368,11 +1368,16 @@ function removeWaypoint(id, event) {
 // them from overlapping when the user adds intermediate stops and the card
 // grows. Called whenever waypoints are added/removed or panel resizes.
 function updateLeftPanelOffset() {
-  const wrap = document.getElementById('searchWrap'); // 观察整个搜索容器
-  if (!wrap) return;
-  const rect = wrap.getBoundingClientRect();
-  // 间距设为 wrap 底部 + 12px
-  const top = rect.height + 12 + 12; // 顶部固定位 12 + 高度 + 间隙
+  // 【关键修复】：只测量 .search-card 的高度，不要测 searchWrap 整体，
+  // 因为 searchWrap 包含了搜索 dropdown —— dropdown 一打开就会让整个 wrap
+  // 变高，把 Routes 面板推下去。我们要的是：dropdown 直接覆盖 Routes 面板，
+  // Routes 面板只跟随搜索卡（起点/终点/Add stop 行）的高度变化。
+  const card = document.querySelector('#searchWrap .search-card');
+  if (!card) return;
+  const rect = card.getBoundingClientRect();
+  // 间隙：顶部 12 + 搜索卡高 + 6px 让 panel 几乎贴着搜索卡
+  // (panel 底部的圆角也会视觉上"合并"到搜索卡下面)
+  const top = 12 + rect.height + 6;
   document.documentElement.style.setProperty('--panel-top', top + 'px');
 }
 window.addEventListener('resize', updateLeftPanelOffset);
@@ -1531,7 +1536,7 @@ async function renderRegionalLeaderboard() {
     const meta = REGION_META[r.name] || REGION_META['Other Malaysia'];
     const barPct = Math.round((r.carbon / max) * 100);
     return `<div class="lb-row region">
-      <div class="lb-rank ${rc}">${meta.emoji}</div>
+      <div class="lb-rank ${rc}">${i + 1}</div>
       <div class="lb-info">
         <div class="lb-name">${escHtml(r.name)}</div>
         <div class="lb-stat">${r.users} user${r.users!==1?'s':''} · ${r.trips} trips · ${meta.sub}</div>
@@ -1640,9 +1645,14 @@ async function authSubmit() {
 
 function switchMode(newMode) {
   if (J.mode === newMode) return;
+  // Carpool and Grab go through their hailing flow (same as selM). Without
+  // this, tapping Carpool in Route Options skipped straight to routes and
+  // bypassed the booking sequence.
+  if (newMode === 'Carpool')            { J.mode = newMode; step('cp-ask'); return; }
+  if (newMode === 'Grab / E-hailing')   { startHailing('Grab'); return; }
   J.mode = newMode;
   showToast(`Switching to ${newMode}...`);
-  getRoute(); // 重新加载路线
+  getRoute();
 }
 
 /* --- Google Authentication --- */
@@ -2270,6 +2280,23 @@ function openPanel(){
   p.classList.add('show');
   updateLeftPanelOffset();
 }
+
+// Reset the panel to the "Planning your route" placeholder. Called on init
+// and whenever the user clears a location so the panel stays bound to the
+// search card instead of vanishing.
+function showPlanningState() {
+  const pc = document.getElementById('panelContent');
+  const pf = document.getElementById('panelFooterBar');
+  if (pc) pc.innerHTML = `
+    <div class="empty-state">
+      <div class="es-ico">${iconSized('pin', 32)}</div>
+      <div class="es-title">Planning your route</div>
+      <div class="es-sub">Select both <b>Start</b> and <b>Destination</b> above to see Eco-Flow options.</div>
+    </div>`;
+  if (pf) pf.innerHTML = '';
+  openPanel();
+}
+
 function closePanel() {
   const panel = document.getElementById('leftPanel');
   panel.classList.remove('show');
@@ -2323,15 +2350,22 @@ function navTo(tab) {
   }
 
   document.querySelectorAll('.rail-item').forEach(n => n.classList.remove('active'));
-  const railEl = document.getElementById('rail' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  // 【修复】：侧栏 rail 项用的是 railLB/railImpact 等缩写，不是 railLeaderboard。
+  // 对应表：tab 名称 → HTML id 后缀
+  const RAIL_ID_MAP = {
+    map: 'Map', impact: 'Impact', leaderboard: 'LB',
+    chat: 'Chat', profile: 'Profile', settings: 'Settings'
+  };
+  const railSuffix = RAIL_ID_MAP[tab] || tab.charAt(0).toUpperCase() + tab.slice(1);
+  const railEl = document.getElementById('rail' + railSuffix);
   if (railEl) railEl.classList.add('active');
 
   document.querySelectorAll('.side-panel').forEach(p => p.classList.remove('open'));
 
   if (tab === 'map') return;
   
-  // 打开对应的面板
-  const targetPanel = document.getElementById('panel' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  // 打开对应的面板 — 同样用上面的映射表
+  const targetPanel = document.getElementById('panel' + railSuffix);
   if (targetPanel) {
     targetPanel.classList.add('open');
     // 根据不同标签加载数据
@@ -2355,6 +2389,31 @@ function step(s) {
   const pf = document.getElementById('panelFooterBar');
 
   if (s === 'mode') {
+    // Full 9-mode list — same as what appears in Route Options tabs so the
+    // experience is consistent no matter which picker the user uses.
+    const inKL = (lat, lon) => lat > 2.6 && lat < 3.5 && lon > 101.2 && lon < 102.0;
+    const outsideKL = !inKL(C.s.lat, C.s.lon) && !inKL(C.e.lat, C.e.lon);
+    const MODE_DEFS = [
+      {mode: 'Drive',            lbl: 'Drive',      sub: 'Your own car',      icon: 'car'},
+      {mode: 'Carpool',          lbl: 'Carpool',    sub: 'Share the ride',    icon: 'carpool'},
+      {mode: 'Motorcycle',       lbl: 'Motorcycle', sub: 'Quick · low fuel',  icon: 'motorcycle'},
+      {mode: 'Grab / E-hailing', lbl: 'E-hailing',  sub: 'Grab · InDrive',    icon: 'grab'},
+      {mode: 'Bus / RapidKL',    lbl: 'Bus',        sub: 'RapidKL · MyBas',   icon: 'bus'},
+      {mode: 'MRT / LRT',        lbl: 'Transit',    sub: 'MRT · LRT · KTM',   icon: 'mrt',      klOnly: true},
+      {mode: 'Park & Ride',      lbl: 'Park+Ride',  sub: 'Drive to station',  icon: 'parkride', klOnly: true},
+      {mode: 'Cycling',          lbl: 'Cycling',    sub: 'Healthy & green',   icon: 'cycle'},
+      {mode: 'Walking',          lbl: 'Walking',    sub: 'Zero emissions',    icon: 'walk'},
+    ];
+    const modeCards = MODE_DEFS
+      .filter(d => !(d.klOnly && outsideKL))
+      .map(d => `
+        <div class="mode-big" onclick="selM('${d.mode.replace(/'/g,"\\'")}')">
+          <div style="color:${MC[d.mode] || '#22C55E'}">${iconSized(d.icon, 32)}</div>
+          <div class="mode-big-lbl">${d.lbl}</div>
+          <div class="mode-big-sub">${d.sub}</div>
+        </div>`)
+      .join('');
+
     pc.innerHTML = `
       <div class="ph-hd">
         <div style="flex:1">
@@ -2365,46 +2424,35 @@ function step(s) {
       </div>
       <div class="pb">
         <div class="slabel">Pick a mode</div>
-        <div class="mode-grid">
-          <div class="mode-big" onclick="selM('Drive')">
-            <div style="color:${MC.Drive}">${iconSized('car',32)}</div>
-            <div class="mode-big-lbl">Drive</div>
-            <div class="mode-big-sub">Your own car</div>
-          </div>
-          <div class="mode-big" onclick="selM('Carpool')">
-            <div style="color:${MC.Carpool}">${iconSized('carpool',32)}</div>
-            <div class="mode-big-lbl">Carpool</div>
-            <div class="mode-big-sub">Share the ride</div>
-          </div>
-          <div class="mode-big" onclick="selM('Walking')">
-            <div style="color:${MC.Walking}">${iconSized('walk',32)}</div>
-            <div class="mode-big-lbl">Walking</div>
-            <div class="mode-big-sub">Zero emissions</div>
-          </div>
-          <div class="mode-big" onclick="selM('MRT / LRT')">
-            <div style="color:${MC['MRT / LRT']}">${iconSized('mrt',32)}</div>
-            <div class="mode-big-lbl">Transit</div>
-            <div class="mode-big-sub">MRT · LRT · Bus</div>
-          </div>
-          <div class="mode-big" onclick="selM('Cycling')">
-            <div style="color:${MC.Cycling}">${iconSized('cycle',32)}</div>
-            <div class="mode-big-lbl">Cycling</div>
-            <div class="mode-big-sub">Healthy &amp; green</div>
-          </div>
-          <div class="mode-big" onclick="selM('Grab / E-hailing')">
-            <div style="color:${MC['Grab / E-hailing']}">${iconSized('grab',32)}</div>
-            <div class="mode-big-lbl">E-hailing</div>
-            <div class="mode-big-sub">Grab · InDrive</div>
-          </div>
-        </div>
+        <div class="mode-grid">${modeCards}</div>
         <div class="slabel">Why EcoFlow</div>
         <div style="font-size:12px;color:var(--text3);line-height:1.7;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:12px">
           We compare <b style="color:var(--text2)">3 different routes</b> for every mode by time, cost, fuel, carbon &amp; congestion — then Gemini AI recommends the best one for Malaysian commuters.
         </div>
       </div>`;
     pf.innerHTML = '';
+
+    // Async refinement via Overpass: hide Bus/MRT/P+Ride cards when no
+    // actual transit within range of both endpoints. Matches what Route
+    // Options does — keeps both pickers consistent.
+    (async () => {
+      try {
+        if (typeof shouldOfferBus !== 'function' || typeof shouldOfferRail !== 'function') return;
+        const [hasBus, hasRail] = await Promise.all([
+          shouldOfferBus(C.s.lat, C.s.lon, C.e.lat, C.e.lon),
+          shouldOfferRail(C.s.lat, C.s.lon, C.e.lat, C.e.lon),
+        ]);
+        document.querySelectorAll('.mode-grid .mode-big').forEach(card => {
+          const lbl = card.querySelector('.mode-big-lbl')?.textContent || '';
+          if (!hasBus && lbl === 'Bus') card.style.display = 'none';
+          if (!hasRail && (lbl === 'Transit' || lbl === 'Park+Ride')) card.style.display = 'none';
+        });
+      } catch(e) { /* offline — keep all tabs, fail-open */ }
+    })();
   }
   else if (s === 'cp-ask') {
+    // Carpool has two roles: driver vs rider. Rider goes through the full
+    // booking flow. Driver just jumps to normal route planning.
     pc.innerHTML = `
       <div class="ph-hd">
         <button class="ph-back" onclick="step('mode')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
@@ -2412,16 +2460,17 @@ function step(s) {
           <div class="ph-title">Carpool</div>
           <div class="ph-sub">Choose your role</div>
         </div>
+        <button class="ph-close" onclick="closePanel()">✕</button>
       </div>
       <div class="pb">
-        <div class="mode-big" style="flex-direction:row;gap:12px;padding:14px;margin-bottom:10px" onclick="J.cp=true;getRoute()">
+        <div class="mode-big" style="flex-direction:row;gap:12px;padding:14px;margin-bottom:10px" onclick="J.cp='driver';getRoute()">
           <div style="width:36px;height:36px;border-radius:10px;${getIconBg('Carpool')};display:flex;align-items:center;justify-content:center">${ICONS.car}</div>
           <div style="flex:1;text-align:left">
             <div class="mode-big-lbl" style="font-size:14px">I'm driving — offer seats</div>
             <div class="mode-big-sub" style="text-align:left;font-size:11px">Earn eco credits · split fuel</div>
           </div>
         </div>
-        <div class="mode-big" style="flex-direction:row;gap:12px;padding:14px" onclick="J.cp=false;getRoute()">
+        <div class="mode-big" style="flex-direction:row;gap:12px;padding:14px" onclick="J.cp='rider';startHailing('Carpool')">
           <div style="width:36px;height:36px;border-radius:10px;background:var(--blue-bg);color:var(--blue);display:flex;align-items:center;justify-content:center">${ICONS.carpool}</div>
           <div style="flex:1;text-align:left">
             <div class="mode-big-lbl" style="font-size:14px">I need a ride</div>
@@ -2431,12 +2480,229 @@ function step(s) {
       </div>`;
     pf.innerHTML = '';
   }
+  else if (s === 'hail-searching') {
+    // Stage 1: searching for a driver (uses J._hailKind which tells us Carpool vs Grab)
+    const kind = J._hailKind || 'Grab';
+    const title = kind === 'Carpool' ? 'Finding a carpool…' : 'Finding a driver…';
+    pc.innerHTML = `
+      <div class="ph-hd">
+        <button class="ph-back" onclick="step('mode')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+        <div style="flex:1">
+          <div class="ph-title">${title}</div>
+          <div class="ph-sub">Scanning ${kind === 'Carpool' ? 'carpools' : 'drivers'} near you</div>
+        </div>
+        <button class="ph-close" onclick="closePanel()">✕</button>
+      </div>
+      <div class="loading-state" style="padding:40px 20px">
+        <div class="loading-spinner" style="width:40px;height:40px;border-width:3px;margin-bottom:16px"></div>
+        <div class="loading-txt" style="font-weight:600;font-size:14px;color:var(--text)">Looking for a match</div>
+        <div style="color:var(--text3);font-size:12px;margin-top:6px">Usually under a second</div>
+      </div>`;
+    pf.innerHTML = '';
+    // Shortened timings — Grab 900ms, Carpool 1200ms
+    const delay = kind === 'Carpool' ? 1200 : 900;
+    setTimeout(() => {
+      if (J.mode !== J._hailExpectedMode) return;
+      // Carpool has an extra confirm step (rider sends request → driver accepts).
+      // Grab goes straight to accepted because e-hailing is always auto-matched.
+      if (kind === 'Carpool') step('hail-confirm');
+      else step('hail-accepted');
+    }, delay);
+  }
+  else if (s === 'hail-confirm') {
+    // Carpool-only stage: show driver's card, user must tap "Send request",
+    // then driver "accepts" after ~700ms. Mirrors real carpool apps where
+    // the driver has discretion — Grab doesn't have this.
+    const d = J._hailDriver;
+    if (!d) return step('hail-searching');
+    pc.innerHTML = `
+      <div class="ph-hd">
+        <button class="ph-back" onclick="step('hail-searching')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+        <div style="flex:1">
+          <div class="ph-title">Match found</div>
+          <div class="ph-sub">Send a ride request</div>
+        </div>
+        <button class="ph-close" onclick="closePanel()">✕</button>
+      </div>
+      <div class="pb">
+        <div style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:12px">
+          <div style="width:52px;height:52px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;flex-shrink:0">${d.name[0]}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:15px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px">
+              ${escHtml(d.name)}
+              <span style="font-size:11px;color:var(--orange);display:inline-flex;align-items:center;gap:3px">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>${d.rating}
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${escHtml(d.car)} · <b>${escHtml(d.plate)}</b></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
+          <div style="padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Pickup ETA</div>
+            <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text);margin-top:2px">${d.pickupMin}<span style="font-size:11px;color:var(--text3)"> min</span></div>
+          </div>
+          <div style="padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Share cost</div>
+            <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);margin-top:2px">RM${d.fare}</div>
+          </div>
+        </div>
+      </div>`;
+    pf.style.display = 'block';
+    pf.innerHTML = `
+      <div style="display:flex;gap:8px">
+        <button class="btn-sec" style="flex:1" onclick="step('hail-searching')">Find another</button>
+        <button class="btn-nav" style="flex:2" onclick="sendCarpoolRequest()">Send request</button>
+      </div>`;
+  }
+  else if (s === 'hail-waiting') {
+    // Request sent, waiting for driver to accept (~800ms → always accepts)
+    const d = J._hailDriver || {};
+    pc.innerHTML = `
+      <div class="ph-hd">
+        <div style="flex:1">
+          <div class="ph-title">Request sent</div>
+          <div class="ph-sub">Waiting for ${escHtml(d.name || 'driver')} to accept</div>
+        </div>
+      </div>
+      <div class="loading-state" style="padding:40px 20px">
+        <div class="loading-spinner" style="width:40px;height:40px;border-width:3px;margin-bottom:16px"></div>
+        <div class="loading-txt" style="font-weight:600;font-size:14px;color:var(--text)">Request in progress</div>
+      </div>`;
+    pf.innerHTML = '';
+    setTimeout(() => {
+      if (J.mode !== J._hailExpectedMode) return;
+      showToast(`${d.name} accepted your request`);
+      step('hail-accepted');
+    }, 900);
+  }
+  else if (s === 'hail-accepted') {
+    // Stage 2: driver found and accepted. Show their info + pickup ETA.
+    // After this auto-advances to hail-arrived where user boards.
+    const d = J._hailDriver;
+    if (!d) return step('hail-searching');
+    const kind = J._hailKind || 'Grab';
+    pc.innerHTML = `
+      <div class="ph-hd">
+        <div style="flex:1">
+          <div class="ph-title">Driver on the way</div>
+          <div class="ph-sub">Arriving in ~${d.pickupMin} min</div>
+        </div>
+        <button class="ph-close" onclick="closePanel()">✕</button>
+      </div>
+      <div class="pb">
+        <div style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:12px">
+          <div style="width:52px;height:52px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;flex-shrink:0">${d.name[0]}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:15px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px">
+              ${escHtml(d.name)}
+              <span style="font-size:11px;color:var(--orange);display:inline-flex;align-items:center;gap:3px">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>${d.rating}
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${escHtml(d.car)} · <b>${escHtml(d.plate)}</b></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">
+          <div style="padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Pickup ETA</div>
+            <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text);margin-top:2px">${d.pickupMin}<span style="font-size:11px;color:var(--text3)"> min</span></div>
+          </div>
+          <div style="padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;text-align:center">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">${kind === 'Carpool' ? 'Share cost' : 'Est. fare'}</div>
+            <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);margin-top:2px">RM${d.fare}</div>
+          </div>
+        </div>
+        <div style="padding:12px 14px;background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:12px;color:var(--accent);font-size:12px;font-weight:600;display:flex;align-items:center;gap:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Driver heading to your pickup point
+        </div>
+      </div>`;
+    pf.innerHTML = '';
+    // Auto-advance after a short delay so demo flows without any clicks
+    setTimeout(() => {
+      if (J.mode !== J._hailExpectedMode) return;
+      const active = pc.querySelector('.ph-title')?.textContent;
+      if (active === 'Driver on the way') step('hail-arrived');
+    }, 2000);
+  }
+  else if (s === 'hail-arrived') {
+    // Stage 3: driver arrived — user boards, route starts automatically.
+    // No "Start trip" button — we simulate boarding time (~2.5s) then kick
+    // straight into getRoute() which plans the journey and shows Let's Go.
+    const d = J._hailDriver || {};
+    pc.innerHTML = `
+      <div class="ph-hd">
+        <div style="flex:1">
+          <div class="ph-title">Driver arrived</div>
+          <div class="ph-sub">Boarding…</div>
+        </div>
+      </div>
+      <div class="pb">
+        <div style="text-align:center;padding:24px 16px">
+          <div style="width:72px;height:72px;margin:0 auto 16px;border-radius:50%;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div style="font-size:17px;font-weight:700;color:var(--text)">${escHtml(d.name || 'Driver')} is here</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">${escHtml(d.car || '')} · <b>${escHtml(d.plate || '')}</b></div>
+          <div style="font-size:12px;color:var(--text3);margin-top:14px;display:inline-flex;align-items:center;gap:8px">
+            <div class="loading-spinner" style="width:14px;height:14px;border-width:2px;margin:0"></div>
+            Trip starting shortly
+          </div>
+        </div>
+      </div>`;
+    pf.innerHTML = '';
+    // Auto-advance after a short boarding delay
+    setTimeout(() => {
+      // Only proceed if user is still in the hailing flow for this kind
+      if (J.mode === J._hailExpectedMode) getRoute();
+    }, 2500);
+  }
 }
 
 function selM(mode) {
   J.mode = mode;
   if (mode === 'Carpool') { step('cp-ask'); return; }
+  if (mode === 'Grab / E-hailing') { startHailing('Grab'); return; }
   getRoute();
+}
+
+/* ─── RIDE-HAILING SIMULATION ───
+   Shared between Carpool (rider mode) and Grab / E-hailing. Generates a
+   simulated driver profile (name, car, plate, rating, pickup ETA, fare)
+   and walks through search → accepted → arrived → getRoute.
+*/
+function startHailing(kind) {
+  J._hailKind = kind;
+  J.mode = kind === 'Carpool' ? 'Carpool' : 'Grab / E-hailing';
+  // 【关键修复】：J.mode !== J._hailExpectedMode 对 Grab 永远成立（'Grab / E-hailing' !== 'Grab'），
+  // 所有 setTimeout 里的 "mode 变了就中止" 检查都误判为 mode 已变 → 流程第一站就 return 掉 → E-hailing 跑不动。
+  // 用 _hailExpectedMode 存真正应该匹配的 mode 字符串。
+  J._hailExpectedMode = J.mode;
+  const names = ['Ahmad', 'Siti', 'Kevin', 'Priya', 'Daniel', 'Mei Ling', 'Hafiz', 'Jason', 'Aisha', 'Wei'];
+  const cars = ['Perodua Myvi', 'Honda City', 'Toyota Vios', 'Proton X50', 'Honda HR-V', 'Perodua Bezza'];
+  const plateSeeds = ['WXY', 'VBN', 'JQA', 'PNM', 'WA', 'VEL'];
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  // Rough fare estimate: RM2 base + RM1.20 per km for Grab, slightly cheaper for Carpool
+  const distKm = haversine(C.s.lat, C.s.lon, C.e.lat, C.e.lon);
+  const farePerKm = kind === 'Carpool' ? 0.85 : 1.35;
+  const fare = (2.0 + distKm * farePerKm).toFixed(2);
+  J._hailDriver = {
+    name: pick(names),
+    car: pick(cars),
+    plate: `${pick(plateSeeds)} ${1000 + Math.floor(Math.random() * 9000)}`,
+    rating: (4.4 + Math.random() * 0.55).toFixed(1),
+    pickupMin: 3 + Math.floor(Math.random() * 6),
+    fare,
+  };
+  step('hail-searching');
+}
+
+// Carpool rider taps "Send request" — simulated driver always accepts after
+// a short delay. Real app would POST to /api/v1/carpool-requests and wait
+// for a push from the driver's device.
+function sendCarpoolRequest() {
+  step('hail-waiting');
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3160,9 +3426,10 @@ function beginNavSim() {
   };
 
   // 车头箭头 — class="nav-arrow-svg" 让 navTick 可以精确找到这个 SVG 来旋转
-  let navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%; height:100%; filter:drop-shadow(0 3px 8px rgba(0,0,0,0.6)); transition:transform 0.15s linear; transform-origin:center;"><path d="M12 2 L4.5 20.29 L5.21 21 L12 18 L18.79 21 L19.5 20.29 Z" fill="#FFFFFF"/></svg>`;
+  // 白色填充 + 黑色薄描边，类似 Google Maps 导航箭头，在深色底图上清晰可见
+  let navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%; height:100%; filter:drop-shadow(0 3px 8px rgba(0,0,0,0.6)); transition:transform 0.15s linear; transform-origin:center;"><path d="M12 2 L4.5 20.29 L5.21 21 L12 18 L18.79 21 L19.5 20.29 Z" fill="#FFFFFF" stroke="#000000" stroke-width="1" stroke-linejoin="round"/></svg>`;
   if (path.isFallback) {
-    navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%;height:100%;fill:#FFFFFF;stroke:var(--accent);stroke-width:1.5px; transition:transform 0.15s linear; transform-origin:center;"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`;
+    navIconSvg = `<svg class="nav-arrow-svg" viewBox="0 0 24 24" style="width:100%;height:100%;fill:#FFFFFF;stroke:#000000;stroke-width:1px;stroke-linejoin:round; transition:transform 0.15s linear; transform-origin:center;"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>`;
   }
 
   navState.vehMarker = L.marker(navState.coords[0], {
@@ -3207,10 +3474,27 @@ function beginNavSim() {
   console.log('[nav] started:', {totalDistKm: navState.totalDistKm, targetKmh: navState.targetKmh, coords: navState.coords.length});
 }
 
-// SIM_SCALE = how many simulated seconds pass per real second.
-// For hackathon demo we want a 20-min trip to finish in ~20 seconds → 60×.
-// (At 1× the trip would take 20 real minutes — way too slow for a demo.)
-const NAV_SIM_SCALE = 60;
+// Per-mode playback speed multiplier. We want the demo to be believable but
+// still quick enough to fit in a hackathon presentation. A typical 10-20km
+// trip should play back in about 2 minutes.
+// These values are "simulated seconds per real second" — higher = faster.
+const NAV_SIM_SCALE_BY_MODE = {
+  'Drive':            10,
+  'Carpool':          10,
+  'Motorcycle':       10,
+  'Grab / E-hailing': 10,
+  'Bus / RapidKL':    8,
+  'MRT / LRT':        10,
+  'Park & Ride':      9,
+  'Cycling':          7,
+  'Walking':          5,
+};
+const NAV_SIM_SCALE_DEFAULT = 8;
+
+function getNavSimScale() {
+  const mode = navState?.variant?.mode;
+  return NAV_SIM_SCALE_BY_MODE[mode] || NAV_SIM_SCALE_DEFAULT;
+}
 
 function navTick() {
   if (!navState || !navState.running) return;
@@ -3219,12 +3503,13 @@ function navTick() {
   // Cap dt to avoid huge jumps after tab was backgrounded
   const realDt = Math.min(0.1, Math.max(0.016, (now - navState.lastTickRealMs) / 1000));
   navState.lastTickRealMs = now;
+  const simScale = getNavSimScale();
 
   // Red-light pause check (currently never triggered since stoppedUntilRealMs is unset,
   // but kept for future stop simulation)
   if (navState.stoppedUntilRealMs && now < navState.stoppedUntilRealMs) {
     navState.currentKmh = 0;
-    navState.elapsedSimS += realDt * NAV_SIM_SCALE;
+    navState.elapsedSimS += realDt * simScale;
     if (Math.floor(now/1000) > Math.floor((now-realDt*1000)/1000)) updateNavUI();
     return;
   }
@@ -3234,9 +3519,9 @@ function navTick() {
   navState.currentKmh = navState.targetKmh * variance;
 
   // Distance step: speed (km/h) × hours = km
-  const simDtHours = (realDt * NAV_SIM_SCALE) / 3600;
+  const simDtHours = (realDt * simScale) / 3600;
   navState.distTraveledKm += navState.currentKmh * simDtHours;
-  navState.elapsedSimS += realDt * NAV_SIM_SCALE;
+  navState.elapsedSimS += realDt * simScale;
 
   const pos = pointAtDistanceKm(navState.coords, navState.distTraveledKm);
 
@@ -3261,9 +3546,11 @@ function navTick() {
     navState.vehMarker.setLatLng(pos);
     navState.lastPos = pos;
 
-    // Smoothly pan the map to follow the vehicle. panTo with short duration
-    // looks much smoother than setView and doesn't fight the rAF loop.
-    map.panTo(pos, {animate: true, duration: 0.15, easeLinearity: 0.5, noMoveStart: true});
+    // 【关键修复】：之前用 map.panTo({animate:true, duration:0.15}) 每帧调一次，
+    // 每次都起一个 150ms 的动画，但 60fps 意味着每 16ms 又有新动画排队，
+    // 动画一直在 overlap → 视觉上看就像相机"拖延"着跟不上箭头 → 用户感知为延迟。
+    // 改成 setView + animate:false：每帧瞬间对齐，相机永远紧跟箭头，60fps 本身就够丝滑。
+    map.setView(pos, map.getZoom(), {animate: false});
 
     // Live CO₂ update — proportional to distance travelled
     if (navState.variant && document.getElementById('liveCarbon')) {
@@ -3351,11 +3638,9 @@ function updateNavUI() {
   const v = navState.variant;
   const remainingKm = Math.max(0, +(navState.totalDistKm - navState.distTraveledKm).toFixed(2));
   const remainingSec = Math.max(0, Math.round(navState.totalTimeS - navState.elapsedSimS));
-  const remainingMin = Math.ceil(remainingSec / 60); // <--- 致命修复：加上这个变量定义，地图就不会卡死了！
+  const remainingMin = Math.ceil(remainingSec / 60);
 
   const now = new Date();
-  const etaMs = now.getTime() + remainingSec * 1000;  // in sim-world, this is wall-clock-correct if we assume real time ≈ sim time for display
-  // For display, just take scheduled finish based on real-world total time
   const etaD = new Date(now.getTime() + (remainingKm / Math.max(1, navState.targetKmh)) * 3600 * 1000);
   const etaStr = `${String(etaD.getHours()).padStart(2,'0')}:${String(etaD.getMinutes()).padStart(2,'0')}`;
 
@@ -3365,7 +3650,6 @@ function updateNavUI() {
     const nextIdx = Math.min(navState.steps.length - 1, navState.nextStepIdx);
     const st = navState.steps[nextIdx];
     if (st) {
-      // Approximate: distance to the next maneuver = remaining portion scaled to step distance
       const stepFrac = 1 - (navState.distTraveledKm / Math.max(0.01, navState.totalDistKm));
       nextDist = st.distance ? Math.max(0, Math.round(st.distance * stepFrac)) : 0;
       const instr = humanizeStep(st);
@@ -3386,32 +3670,32 @@ function updateNavUI() {
 
   const imperial = getSettings().units === 'imperial';
 
-  const distEl = document.getElementById('navNextDist');
-  if (distEl) {
-    if (imperial) {
-      const ft = nextDist * 3.28084;
-      distEl.innerHTML = ft >= 5280
-        ? `${(ft/5280).toFixed(1)}<span> mi</span>`
-        : `${Math.round(ft)}<span> ft</span>`;
-    } else {
-      distEl.innerHTML = nextDist >= 1000
-        ? `${(nextDist/1000).toFixed(1)}<span> km</span>`
-        : `${nextDist}<span> m</span>`;
-    }
-  }
-  document.getElementById('navInstr').textContent = nextInstr;
-  document.getElementById('navEta').innerHTML = `${etaStr}<span></span>`;
-  document.getElementById('navRemainTime').innerHTML = `${remainingMin}<span> min</span>`; // <--- 新增这行
+  // 【关键修复】：每个 getElementById 必须 null-safe。beginNavSim 创建 liveCarbon
+  // 而不是 navSpeed，但旧 updateNavUI 还在写 navSpeed → null.innerHTML 抛
+  // TypeError → rAF 引擎死在第一帧 → 箭头就卡住了。用 set() 辅助消除风险。
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+
   if (imperial) {
-    const mi  = remainingKm * 0.621371;
-    const mph = navState.currentKmh * 0.621371;
-    document.getElementById('navRemain').innerHTML = `${mi.toFixed(2)}<span> mi</span>`;
-    document.getElementById('navSpeed').innerHTML  = `${Math.round(mph)}<span> mph</span>`;
+    const ft = nextDist * 3.28084;
+    set('navNextDist', ft >= 5280 ? `${(ft/5280).toFixed(1)}<span> mi</span>` : `${Math.round(ft)}<span> ft</span>`);
   } else {
-    document.getElementById('navRemain').innerHTML = `${remainingKm}<span> km</span>`;
-    document.getElementById('navSpeed').innerHTML  = `${Math.round(navState.currentKmh)}<span> km/h</span>`;
+    set('navNextDist', nextDist >= 1000 ? `${(nextDist/1000).toFixed(1)}<span> km</span>` : `${nextDist}<span> m</span>`);
   }
-  document.getElementById('navProg').style.width = `${Math.round((navState.distTraveledKm/Math.max(0.01,navState.totalDistKm))*100)}%`;
+  setTxt('navInstr', nextInstr);
+  set('navEta', `${etaStr}<span></span>`);
+  set('navRemainTime', `${remainingMin}<span> min</span>`);
+  if (imperial) {
+    const mi = remainingKm * 0.621371;
+    const mph = navState.currentKmh * 0.621371;
+    set('navRemain', `${mi.toFixed(2)}<span> mi</span>`);
+    set('navSpeed',  `${Math.round(mph)}<span> mph</span>`);
+  } else {
+    set('navRemain', `${remainingKm}<span> km</span>`);
+    set('navSpeed',  `${Math.round(navState.currentKmh)}<span> km/h</span>`);
+  }
+  const progEl = document.getElementById('navProg');
+  if (progEl) progEl.style.width = `${Math.round((navState.distTraveledKm/Math.max(0.01,navState.totalDistKm))*100)}%`;
 
   updateDirIcon(navState.steps[navState.nextStepIdx]);
 }
@@ -3452,10 +3736,21 @@ function speak(msg) {
   if (!getSettings().voice) return;
   if (!('speechSynthesis' in window)) return;
   try {
-    const u = new SpeechSynthesisUtterance(msg);
-    u.rate = 1.05; u.volume = 0.8;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+    // 【修复】：cancel() 紧接着 speak() 会被 Chrome/Safari 吃掉音频 —— speak() 被
+    // 塞进队列然后立刻被 cancel() 清空。用 pending 检查 + setTimeout 解决。
+    const ss = window.speechSynthesis;
+    const doSpeak = () => {
+      const u = new SpeechSynthesisUtterance(msg);
+      u.rate = 1.05; u.volume = 0.85; u.lang = 'en-US';
+      ss.speak(u);
+    };
+    if (ss.speaking || ss.pending) {
+      ss.cancel();
+      // 让浏览器先清空队列，再下发新的 utterance
+      setTimeout(doSpeak, 60);
+    } else {
+      doSpeak();
+    }
   } catch(e) {}
 }
 
@@ -3474,14 +3769,17 @@ function toggleMute() {
 }
 
 function endNav() {
-  // 1. 关闭引擎和清理车辆
+  // 1. 关闭引擎和清理车辆 + 清理拥堵段叠加层
   if (navState) {
     navState.running = false; 
     if (navState.vehMarker) map.removeLayer(navState.vehMarker);
+    if (navState.congestionLayers) {
+      navState.congestionLayers.forEach(l => map.removeLayer(l));
+    }
   }
   navState = null;
   
-  // 2. 隐藏导航 UI (重点修复：是 remove 'show')
+  // 2. 隐藏导航 UI
   const nv = document.getElementById('navView');
   if (nv) nv.classList.remove('show');
   document.body.classList.remove('nav-preview');
@@ -3490,23 +3788,113 @@ function endNav() {
   map.dragging.enable();
   if (map.touchZoom) map.touchZoom.enable();
   
-  // 4. 恢复所有路线的透明度
-  if (typeof rL !== 'undefined') {
-      rL.forEach(pl => pl.setStyle({weight:4, opacity:0.55}));
+  // 4. 清理所有路线图层 —— 不只改透明度，整个物理删除，否则下一次选地点
+  //    会留下上一次的蓝线 + 被旧 route state 污染
+  if (typeof rL !== 'undefined' && rL.length) {
+    rL.forEach(pl => { try { map.removeLayer(pl); } catch(e){} });
+    rL = [];
   }
-  
-  showToast("Trip ended");
 
-  // 5. 重新打开路线选择侧边栏
-  openPanel();
-  if (window._lastAnalysis && window._variants) {
-      renderRouteOptions(window._lastAnalysis, window._variants, _paths);
-  }
+  // 5. 清干净 journey state —— 否则用户选新地点会默认用旧 mode 跑 getRoute
+  //    → 看起来像"之前选了 Carpool，现在没选模式就直接跳去 Carpool Route Options"
+  J.mode = null;
+  J.cp = null;
+  J.selectedRoute = null;
+  J._hailKind = null;
+  J._hailDriver = null;
+  J._hailExpectedMode = null;
+  window._lastAnalysis = null;
+  window._variants = null;
+  _paths = null;
+
+  // 6. 回到初始规划态（Planning 占位卡 + 清空搜索 input + 拔图钉）
+  clrMap();
+  if (document.getElementById('iStart')) { document.getElementById('iStart').value = ''; }
+  if (document.getElementById('iEnd'))   { document.getElementById('iEnd').value = ''; }
+  C.s = null; C.e = null;
+  for (const k of Object.keys(C)) { if (/^wp\d+$/.test(k)) delete C[k]; }
+  document.getElementById('clrS')?.classList.remove('vis');
+  document.getElementById('clrE')?.classList.remove('vis');
+  showPlanningState();
 }
 
+/* ─── TRIP ARRIVAL SUMMARY ───
+   Instead of bouncing back to Route Options (stale data, confusing UX), we
+   show a sleek "Trip complete" card with the real impact of the journey —
+   CO₂ saved vs driving, km travelled, time saved, eco score, etc. */
 function arrivedAtDestination() {
-  showToast('Destination Reached'); 
-  setTimeout(() => endNav(), 1500);
+  // Stop the engine but DON'T tear down the route line yet — user wants to
+  // see the full route one more time on the summary screen
+  if (navState) {
+    navState.running = false;
+    if (navState.vehMarker) map.removeLayer(navState.vehMarker);
+  }
+  const v = navState?.variant;
+  const sName = C.e?.name || 'destination';
+
+  // Numbers for the summary card
+  const totalKm  = (v?.distance_km || 0);
+  const totalMin = (v?.time_mins || 0);
+  const co2Kg    = (v?.carbon_kg || 0);
+  const ecoScore = (v?.eco_score != null ? v.eco_score : 0);
+  // Carbon saved vs a regular drive alone. If the backend supplied a figure, use it;
+  // otherwise approximate using the standard 0.192 kg CO2/km petrol car emission factor.
+  let carbonSavedKg = v?.carbon_saved_vs_driving;
+  if (carbonSavedKg == null) {
+    const driveCO2 = totalKm * 0.192;
+    carbonSavedKg = Math.max(0, +(driveCO2 - co2Kg).toFixed(2));
+  }
+  const treesEq = +(carbonSavedKg * 0.05).toFixed(2); // rough: 1 tree ≈ 20kg CO2/yr
+  const ringgitSaved = v?.cost_saved_rm || +(totalKm * 0.55).toFixed(2); // rough fuel equiv
+
+  // Save to backend in the background
+  saveCurrentTrip();
+
+  // Swap the bottom nav bar for a clean summary sheet
+  const nv = document.getElementById('navView');
+  const top = document.querySelector('#navView .nav-top');
+  const bot = document.querySelector('#navView .nav-bottom');
+  if (top) top.innerHTML = `
+    <div style="width:48px;height:48px;border-radius:12px;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div style="flex:1;min-width:0;margin-left:12px">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;font-weight:700">You have arrived</div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(sName)}</div>
+    </div>`;
+  if (bot) bot.innerHTML = `
+    <div style="padding:14px 16px 18px">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px">
+        <div style="padding:12px;background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:12px">
+          <div style="font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.7px">CO₂ saved vs driving</div>
+          <div style="font-family:var(--mono);font-size:22px;font-weight:800;color:var(--accent);margin-top:4px;line-height:1">${carbonSavedKg.toFixed(2)}<span style="font-size:12px;color:var(--text3);font-weight:500;margin-left:3px">kg</span></div>
+        </div>
+        <div style="padding:12px;background:var(--card);border:1px solid var(--border);border-radius:12px">
+          <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px">Trees equivalent</div>
+          <div style="font-family:var(--mono);font-size:22px;font-weight:800;color:var(--text);margin-top:4px;line-height:1">≈${treesEq}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+        <div style="padding:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;text-align:center">
+          <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Distance</div>
+          <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text);margin-top:3px">${totalKm}<span style="font-size:10px;color:var(--text3)"> km</span></div>
+        </div>
+        <div style="padding:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;text-align:center">
+          <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Duration</div>
+          <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text);margin-top:3px">${totalMin}<span style="font-size:10px;color:var(--text3)"> min</span></div>
+        </div>
+        <div style="padding:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;text-align:center">
+          <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Eco score</div>
+          <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--accent);margin-top:3px">${ecoScore}<span style="font-size:10px;color:var(--text3)">/100</span></div>
+        </div>
+      </div>
+      <div style="padding:10px 12px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:10px;font-size:12px;color:var(--text2);margin-bottom:14px;display:flex;gap:10px;align-items:center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Saved approximately <b style="color:var(--text)">RM ${ringgitSaved}</b> vs driving alone
+      </div>
+      <button class="btn-nav" style="width:100%" onclick="endNav()">Done — plan another trip</button>
+    </div>`;
+  speak(`You have arrived at ${sName}.`);
 }
 
 async function saveCurrentTrip(cb) {
@@ -4213,21 +4601,22 @@ function setPOI(lat, lng, name, role) {
   }
 
   if (!trafficOn) toggleTraffic(); // 默认开启
+
+  // Show the "Planning your route" placeholder right away so the panel is
+  // always visually bound to the search card (not floating separately).
+  setTimeout(showPlanningState, 200);
 })();
 
 // 放到 script 标签的最底下！
-const searchWrapEl = document.getElementById('searchWrap');
-if (searchWrapEl) {
+// 【修复】：只观察 .search-card 本身，不要观察整个 searchWrap，
+// 否则 dropdown 一展开就让 Routes 面板被推下去。
+const searchCardEl = document.querySelector('#searchWrap .search-card');
+if (searchCardEl) {
   new ResizeObserver(() => {
-    const bottom = searchWrapEl.getBoundingClientRect().bottom;
-    const newTop = (bottom + 12) + 'px';
-    
-    // 仅调整路线面板的 top 偏移
-    const lp = document.getElementById('leftPanel');
-    if (lp) lp.style.setProperty('--panel-top', newTop);
-    
-    // Side-panel 现在在 CSS 里固定了 top: 12px，这里不需要再改它们了
-  }).observe(searchWrapEl);
+    const rect = searchCardEl.getBoundingClientRect();
+    const newTop = (12 + rect.height + 6) + 'px';
+    document.documentElement.style.setProperty('--panel-top', newTop);
+  }).observe(searchCardEl);
 }
 
 </script>
