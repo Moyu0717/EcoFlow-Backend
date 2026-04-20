@@ -5,6 +5,8 @@ GDG UTM | Build with Google AI 2026
 """
 
 import os
+from google.cloud import discoveryengine_v1beta as discoveryengine
+import google.generativeai as genai
 import math
 import time
 import logging
@@ -35,13 +37,26 @@ load_dotenv()
 GEMINI_API_KEY   = os.getenv("GEMINI_API_KEY", "")
 FIREBASE_KEY     = os.getenv("FIREBASE_KEY_PATH", "firebase-key.json")
 
+# --- GCP RAG / Vertex AI Search ---
+# On Cloud Run we rely on the runtime service account (no key file needed).
+# Locally, set GOOGLE_APPLICATION_CREDENTIALS in .env to point to your JSON key.
+PROJECT_ID   = os.getenv("GCP_PROJECT_ID",   "my-future-ai-493816")
+LOCATION     = os.getenv("GCP_LOCATION",     "global")
+DATASTORE_ID = os.getenv("GCP_DATASTORE_ID", "ecoflow_1776621221780")
+MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN", "")
+
 # ============================================================
 # Firebase Init
 # ============================================================
 if not firebase_admin._apps:
     try:
-        cred = credentials.Certificate(FIREBASE_KEY)
-        firebase_admin.initialize_app(cred)
+        # On Cloud Run, if no key file is present, fall back to default
+        # credentials (the runtime service account).
+        if os.path.exists(FIREBASE_KEY):
+            cred = credentials.Certificate(FIREBASE_KEY)
+            firebase_admin.initialize_app(cred)
+        else:
+            firebase_admin.initialize_app()
         log.info("✅ Firebase connected")
     except Exception as e:
         log.error(f"❌ Firebase init failed: {e}")
@@ -55,7 +70,6 @@ gemini_model = None
 
 if GEMINI_API_KEY:
     try:
-        import google.generativeai as genai          # pip install google-generativeai
         genai.configure(api_key=GEMINI_API_KEY)
         gemini_model = genai.GenerativeModel(
             model_name="gemini-2.5-flash",           # fast + free tier
@@ -64,8 +78,6 @@ if GEMINI_API_KEY:
         # Quick connectivity test
         test = gemini_model.generate_content("Say OK")
         log.info(f"✅ Gemini connected — test: {test.text.strip()[:20]}")
-    except ImportError:
-        log.error("❌ google-generativeai not installed. Run: pip install google-generativeai")
     except Exception as e:
         log.warning(f"⚠️  Gemini unavailable ({e}) — using smart fallback responses")
 else:
@@ -79,16 +91,13 @@ app = FastAPI(
     description="Smart urban commute decisions — green, cheap, fast 🌿",
     version="2.0.0"
 )
+@app.get("/api/config")
+async def get_config():
+    return {"mapbox_token": MAPBOX_TOKEN}
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return Response(content="", media_type="image/x-icon")
-
-@app.get("/")
-async def read_index():
-    if os.path.exists("index.html"):
-        return FileResponse("index.html")
-    return {"status": "Backend is running, but index.html missing"}
 
 @app.middleware("http")
 async def validate_user_header(request, call_next):
@@ -136,7 +145,6 @@ async def sync_user(profile: UserProfile):
             log.info(f"✨ New user created: {profile.user_id}")
             return {"status": "created", "user_id": profile.user_id}
         else:
-
             user_ref.update({
                 "last_login": datetime.now()
             })
@@ -146,23 +154,6 @@ async def sync_user(profile: UserProfile):
     except Exception as e:
         log.error(f"❌ Sync failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error during sync")
-    
-@app.post("/api/v1/user-profile")
-async def save_user_profile(profile: UserProfile):
-    """
-    Updates sliders/preferences for a specific user
-    """
-    try:
-        user_ref = db.collection("users").document(profile.user_id)
-        user_ref.update({
-            "prefer_fast": profile.prefer_fast,
-            "prefer_cheap": profile.prefer_cheap,
-            "prefer_green": profile.prefer_green,
-            "vehicle_type": profile.vehicle_type
-        })
-        return {"message": "Success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 app.add_middleware(
     CORSMiddleware,
@@ -170,6 +161,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================
+# Mount the Agentic AI layer (Gemini function-calling)
+# Implements the "Chat → Action" Technical Mandate.
+# ============================================================
+from agent import agent_router
+app.include_router(agent_router)
 
 # ============================================================
 # Malaysian Constants
@@ -319,6 +317,25 @@ def grab_cost(km: float, rush: bool) -> float:
     surge = RM["grab_surge"] if rush else 1.0
     return round((RM["grab_base"] + km * RM["grab_per_km"]) * surge, 2)
 
+def search_rag_knowledge(query: str) -> str:
+    """去 Vertex AI Search (你上传的 PDF) 中寻找马来西亚交通政策背景"""
+    try:
+        client = discoveryengine.SearchServiceClient()
+        serving_config = client.serving_config_path(
+            project=PROJECT_ID, location=LOCATION,
+            data_store=DATASTORE_ID, serving_config="default_config"
+        )
+        request = discoveryengine.SearchRequest(
+            serving_config=serving_config,
+            query=query,
+            page_size=3,
+            content_search_spec={"summary_spec": {"summary_result_count": 5}}
+        )
+        response = client.search(request)
+        return response.summary.summary_text if response.summary else ""
+    except Exception as e:
+        log.warning(f"⚠️ RAG 检索失败: {e}")
+        return ""
 
 def call_gemini(prompt: str, fallback: str = "") -> str:
     """Call Gemini with a safe fallback."""
@@ -329,7 +346,6 @@ def call_gemini(prompt: str, fallback: str = "") -> str:
         except Exception as e:
             log.warning(f"Gemini call failed: {e}")
     return fallback or "🌱 Great choice making an eco-friendly commute!"
-
 
 def smart_fallback(mode: str, context: str = "") -> str:
     """Professional rule-based fallback when Gemini is unavailable."""
@@ -620,37 +636,49 @@ Use exactly 1 emoji at the start."""
         "mode":       data.mode,
     }
 
-
-# ── AI Chat ───────────────────────────────────────────────
+# ── AI Chat (RAG 升级版) ──────────────────────────────────
 @app.post("/api/v1/ai-chat", tags=["AI"])
 def ai_chat(req: ChatRequest):
-    """Conversational AI for commute questions."""
-
+    """
+    结合了 Vertex AI Search (RAG) 的智能聊天。
+    Gemini 会根据你上传的 PDF 政策文档（NETR等）来回答用户。
+    """
+    # 1. 先去 PDF 知识库搜索马来西亚官方政策背景 (RAG)
+    kb_context = search_rag_knowledge(req.message)
+    
+    # 2. 构造 Prompt，将搜索到的知识喂给 Gemini
     ctx_str = f"\nRoute context: {req.context}" if req.context else ""
+    
+    prompt = f"""You are EcoFlow Assistant, a professional Malaysian green mobility expert.
+    
+    【Reference Policy Data (Grounded)】:
+    {kb_context if kb_context else "No specific policy document found. Use general eco-knowledge."}
+    
+    {ctx_str}
+    User Question: {req.message}
 
-    prompt = f"""You are EcoFlow Assistant, a helpful Malaysian urban mobility AI.
-Answer commute questions concisely (max 3 sentences).
-Focus on KL/Selangor context: MRT, LRT, RapidKL, Grab, Touch 'n Go, PLUS highway, petrol prices (RM 2.05/L), typical parking costs.
-{ctx_str}
+    Instructions:
+    - If reference data mentions NETR (National Energy Transition Roadmap), 2050 carbon targets, or RapidKL/MRT specific policies, prioritize those facts.
+    - Be concise (max 3 sentences).
+    - Use 1-2 emojis and professional Malaysian context (e.g., mention Touch 'n Go or MRT)."""
 
-User: {req.message}
-
-Reply naturally, use 1–2 emojis where helpful."""
-
-    fallback = "🌱 I'm here to help you commute smarter! Try asking about routes, costs, or carbon savings."
+    # 3. 调用 Gemini 生成带知识背景的回复
+    fallback = "🌱 I'm here to help you commute smarter based on Malaysia's green policies!"
     reply = call_gemini(prompt, fallback)
 
-    return {"reply": reply, "user_id": req.user_id}
+    return {
+        "reply": reply, 
+        "user_id": req.user_id,
+        "source": "Grounded in National Policy" if kb_context else "General Gemini Knowledge"
+    }
 
 
 # ── Save Trip ─────────────────────────────────────────────
 @app.post("/api/v1/save-trip", tags=["Trips"])
 def save_trip(data: SaveTripRequest):
-    """Record a completed trip and update personal + community stats."""
-
+    """Persist a completed trip and update per-user + global stats."""
     trip_id = f"{data.user_id}_{int(time.time())}"
 
-    # Save trip document
     db.collection("trips").document(trip_id).set({
         "trip_id":                 trip_id,
         "user_id":                 data.user_id,
@@ -691,7 +719,7 @@ def save_trip(data: SaveTripRequest):
         "total_distance_km":  firestore.Increment(data.distance_km),
     }, merge=True)
 
-    trees_eq = round(data.carbon_saved_vs_driving / 21.77, 4)   # avg tree absorbs 21.77 kg CO₂/yr
+    trees_eq = round(data.carbon_saved_vs_driving / 21.77, 4)
 
     return {
         "status":           "saved",
@@ -931,11 +959,13 @@ def find_carpool(req: CarpoolMatchRequest):
             d = doc.to_dict()
             if d.get("user_id") == req.user_id:
                 continue
+            
             try:
                 ds = haversine(req.start_lat, req.start_lon, d["start_lat"], d["start_lon"])
                 de = haversine(req.end_lat,   req.end_lon,   d["end_lat"],   d["end_lon"])
             except (KeyError, TypeError):
                 continue
+                
             if ds <= req.max_detour_km and de <= req.max_detour_km:
                 matches.append({
                     "source":           "carpool_pool",
@@ -1082,7 +1112,7 @@ Recommended option: {recommended['mode']} (Eco Score: {recommended['eco_score']}
 
 Be specific, encouraging, and mention actual numbers."""
 
-    fallback = (f"🌱 Based on your journey, {recommended['mode']} is your best choice — "
+    fallback = (f"Based on your journey, {recommended['mode']} is your best choice — "
                 f"Eco Score {recommended['eco_score']}/100. "
                 f"You save RM{recommended['cost_saved_vs_driving']} and "
                 f"{recommended['carbon_saved_vs_driving']} kg CO₂ compared to driving alone!")
@@ -1106,3 +1136,61 @@ Be specific, encouraging, and mention actual numbers."""
             "eco_score":  0,
         },
      }
+
+
+# ============================================================
+# Vertex AI Agent Builder endpoint
+# ============================================================
+# dialogflow imported lazily in vertex_agent_chat
+import uuid
+
+VERTEX_AGENT_ID = "agent_1776677873136"
+VERTEX_LOCATION  = "global"
+
+_cx_sessions: dict = {}
+
+class VertexAgentRequest(BaseModel):
+    user_id: str
+    message: str
+    language: Optional[str] = "en"
+
+@app.post("/api/v1/vertex-agent", tags=["Agent"])
+def vertex_agent_chat(req: VertexAgentRequest):
+    try:
+        from google.cloud import dialogflow_cx_v3 as dialogflow
+        import uuid
+        session_id = _cx_sessions.get(req.user_id)
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            _cx_sessions[req.user_id] = session_id
+
+        client = dialogflow.SessionsClient()
+        session_path = client.session_path(
+            project=PROJECT_ID,
+            location=VERTEX_LOCATION,
+            agent=VERTEX_AGENT_ID,
+            session=session_id,
+        )
+        text_input = dialogflow.TextInput(text=req.message, language_code="en")
+        query_input = dialogflow.QueryInput(text=text_input, language_code="en")
+        response = client.detect_intent(
+            request={"session": session_path, "query_input": query_input}
+        )
+        reply_texts = []
+        for msg in response.query_result.response_messages:
+            if msg.text and msg.text.text:
+                reply_texts.extend(msg.text.text)
+        reply = " ".join(reply_texts) if reply_texts else "I couldn't find an answer. Please try again."
+        return {
+            "reply": reply,
+            "agent": "Vertex AI Agent Builder",
+            "model": "gemini-2.5-pro",
+            "session_id": session_id,
+        }
+    except Exception as e:
+        log.error(f"Vertex Agent error: {e}")
+        fallback_reply = call_gemini(
+            f"You are EcoFlow, a Malaysian green mobility assistant. Answer briefly: {req.message}",
+            "Please try again or use the Genkit agent."
+        )
+        return {"reply": fallback_reply, "agent": "Gemini Fallback", "error": str(e)}

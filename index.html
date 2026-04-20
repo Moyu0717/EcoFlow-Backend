@@ -845,6 +845,23 @@ body.side-panel-open #searchWrap {
 .chat-send:hover{background:var(--accent2)}
 .chat-send svg{width:18px;height:18px}
 
+/* ═══ AGENT TOGGLE ═══ */
+.agent-toggle{display:flex;gap:4px;padding:10px 12px 0;flex-shrink:0}
+.agent-btn{
+  flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);
+  background:transparent;font-family:var(--font);font-size:11px;font-weight:600;
+  color:var(--text3);cursor:pointer;transition:var(--transition);text-align:center;
+}
+.agent-btn.active{
+  background:var(--accent-bg);border-color:var(--accent);color:var(--accent);
+}
+.agent-badge{
+  display:inline-block;font-size:9px;padding:1px 5px;border-radius:4px;
+  margin-left:4px;font-weight:700;vertical-align:middle;
+}
+.agent-badge.genkit{background:rgba(251,146,60,.15);color:#fb923c}
+.agent-badge.vertex{background:rgba(59,130,246,.15);color:#3b82f6}
+
 /* ═══ PROFILE FORM ═══ */
 .form-group{margin-bottom:14px}
 .form-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;display:block}
@@ -1202,9 +1219,18 @@ body.side-panel-open #searchWrap {
   <div class="ph-hd">
     <div style="flex:1">
       <div class="ph-title">Eco AI</div>
-      <div class="ph-sub">Your smart commute assistant</div>
+      <div class="ph-sub" id="chatAgentSub">Powered by Firebase Genkit + Gemini</div>
     </div>
     <button class="ph-close" onclick="closeSidePanel()">✕</button>
+  </div>
+  <!-- Agent Toggle -->
+  <div class="agent-toggle">
+    <button class="agent-btn active" id="btnGenkit" onclick="switchAgent('genkit')">
+      🔥 Genkit Agent<span class="agent-badge genkit">RAG</span>
+    </button>
+    <button class="agent-btn" id="btnVertex" onclick="switchAgent('vertex')">
+      ✦ Vertex Agent<span class="agent-badge vertex">Pro</span>
+    </button>
   </div>
   <div class="chat-wrap">
     <div class="chat-msgs" id="chatMsgs">
@@ -1273,7 +1299,10 @@ body.side-panel-open #searchWrap {
 /* ═══════════════════════════════════════════════════════
    ECOFLOW ENGINE v4.0 — redesigned layout
    ═══════════════════════════════════════════════════════ */
-const API = "http://localhost:8000";
+// API base: use same origin so this works automatically on both
+// localhost (FastAPI serves index.html) and Cloud Run (same service URL).
+// Override at runtime by setting window.API_BASE before this script loads.
+const API = window.API_BASE || window.location.origin;
 // --- Firebase Configuration ---
 const firebaseConfig = {
   apiKey: "AIzaSyAIbizu1Oe1Alkmsb5BvN-b1SZKGOSROLo",
@@ -1765,13 +1794,18 @@ function getIcon(mode) { return ICONS[MODE_ICON_MAP[mode] || 'car'] || ICONS.car
 function getIconBg(mode) { const c = MC[mode] || '#888'; return `background:${c}18;color:${c}`; }
 
 /* ─── MAP ─── */
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiY2VsaW5lMTAxNiIsImEiOiJjbW8xZThrdjcwZm5jMnBzN3JyYnQwMmNrIn0.lj5RNNwiHdD6iSVikj_3jA';
+let MAPBOX_TOKEN = "";
+fetch("/api/config").then(r => r.json()).then(cfg => {
+  MAPBOX_TOKEN = cfg.mapbox_token;
+  currentMode = null; // force tile layer to rebuild with real token
+  applyMode(getMode());
+});
 const map = L.map('map', {zoomControl: true, attributionControl: false}).setView([3.139, 101.687], 13);
 
 // 老老实实使用你验证过好用的底图链接（dark-v11 和 256 像素完美适配）
 const TILES = {
-  day: `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
-  night: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
+  get day() { return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`; },
+  get night() { return `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`; }
 };
 
 let currentMode = null, tileLayer = null, trafficLayer = null, trafficOn = false;
@@ -1833,7 +1867,6 @@ function toggleTraffic() {
   if (legend) legend.classList.toggle('show', trafficOn);
 }
 
-applyMode(getMode());
 function toggleMode() { applyMode(currentMode === 'day' ? 'night' : 'day'); }
 setInterval(() => applyMode(getMode()), 60000);
 
@@ -4037,6 +4070,27 @@ function shortName(id) {
   return parts.length >= 2 ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1, 8) : id.slice(0, 12);
 }
 
+// ── Agent Toggle ──────────────────────────────────────────
+let ACTIVE_AGENT = 'genkit'; // 'genkit' | 'vertex'
+
+function switchAgent(agent) {
+  ACTIVE_AGENT = agent;
+  document.getElementById('btnGenkit').classList.toggle('active', agent === 'genkit');
+  document.getElementById('btnVertex').classList.toggle('active', agent === 'vertex');
+
+  const sub = document.getElementById('chatAgentSub');
+  const msgs = document.getElementById('chatMsgs');
+
+  if (agent === 'genkit') {
+    sub.textContent = 'Powered by Firebase Genkit + Gemini';
+    msgs.innerHTML += `<div class="chat-msg ai">🔥 Switched to <strong>Genkit Agent</strong> — RAG-grounded with Malaysia policy data.</div>`;
+  } else {
+    sub.textContent = 'Powered by Vertex AI Agent Builder + Gemini 2.5 Pro';
+    msgs.innerHTML += `<div class="chat-msg ai">✦ Switched to <strong>Vertex AI Agent</strong> — Gemini 2.5 Pro with Google Search grounding.</div>`;
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
 async function sendChat() {
   if (!USER) return;
   const input = document.getElementById('chatInput');
@@ -4046,20 +4100,34 @@ async function sendChat() {
 
   const msgs = document.getElementById('chatMsgs');
   msgs.innerHTML += `<div class="chat-msg user">${escHtml(msg)}</div>`;
-  msgs.innerHTML += `<div class="chat-msg ai" id="chatTyping" style="opacity:.5">Thinking…</div>`;
+
+  // Show which agent is thinking
+  const agentLabel = ACTIVE_AGENT === 'vertex' ? '✦ Vertex Agent' : '🔥 Genkit Agent';
+  msgs.innerHTML += `<div class="chat-msg ai" id="chatTyping" style="opacity:.5">${agentLabel} thinking…</div>`;
   msgs.scrollTop = msgs.scrollHeight;
 
   try {
-    const r = await fetch(`${API}/api/v1/ai-chat`, {
+    // Choose endpoint based on active agent
+    const endpoint = ACTIVE_AGENT === 'vertex'
+      ? `${API}/api/v1/vertex-agent`
+      : `${API}/api/v1/agent`;
+
+    const r = await fetch(endpoint, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({user_id: USER.id, message: msg}),
+      body: JSON.stringify({user_id: USER.id, message: msg, language: 'en'}),
     });
     const d = await r.json();
     const typing = document.getElementById('chatTyping');
-    if (typing) typing.outerHTML = `<div class="chat-msg ai">${escHtml(d.reply || 'No reply')}</div>`;
+
+    // Show agent source badge in reply
+    const sourceBadge = d.agent === 'Vertex AI Agent Builder'
+      ? `<span style="font-size:10px;opacity:.6;display:block;margin-top:4px">✦ Vertex AI Agent Builder · Gemini 2.5 Pro</span>`
+      : `<span style="font-size:10px;opacity:.6;display:block;margin-top:4px">🔥 Firebase Genkit · ${d.model || 'Gemini'}</span>`;
+
+    if (typing) typing.outerHTML = `<div class="chat-msg ai">${escHtml(d.reply || 'No reply')}${sourceBadge}</div>`;
   } catch(e) {
     const typing = document.getElementById('chatTyping');
-    if (typing) typing.outerHTML = `<div class="chat-msg ai">Sorry, I couldn't reach the server. Please make sure the backend is running.</div>`;
+    if (typing) typing.outerHTML = `<div class="chat-msg ai">Sorry, couldn't reach the server. Please try again.</div>`;
   }
   msgs.scrollTop = msgs.scrollHeight;
 }

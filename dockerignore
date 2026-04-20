@@ -1,0 +1,45 @@
+# ── Secrets (never bake into image) ──
+.env
+.env.*
+*.pem
+firebase-key.json
+gcp-key.json
+service-account*.json
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Node / Frontend build artifacts ──
+node_modules/
+dist/
+build/
+
+# ── Version control / IDE ──
+.git/
+.gitignore
+.github/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ── Docs / local-only ──
+README.md
+DEPLOY.md
+*.md
+tests/
+docs/
+.claude/
+
+# ── Logs ──
+*.log
+logs/
